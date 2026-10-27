@@ -1,0 +1,44 @@
+{
+  "name": "copy-buttons",
+  "version": "1.0.0",
+  "description": "Copy buttons on each final reply's closing line: the reply as markdown or rendered, each code block, and tables as spreadsheet rows",
+  "author": { "name": "leonasdev", "email": "s8952889@gmail.com" },
+  "homepage": "https://github.com/leonasdev/copy-buttons",
+  "repository": "https://github.com/leonasdev/copy-buttons",
+  "license": "MIT",
+  "keywords": ["copy", "clipboard", "code-block", "table", "terminal"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "icon": {
+      "type": "string",
+      "title": "Icon style",
+      "description": "Icon before each copy action. standard: ⧉ (any font). nerd-font: 󰆏 (needs a Nerd Font; pick it only if this icon shows here)",
+      "default": "standard",
+      "options": [
+        "standard",
+        "nerd-font"
+      ]
+    },
+    "replyFormat": {
+      "type": "string",
+      "title": "Copy reply as",
+      "description": "What the Reply action copies first. markdown: the reply as Claude wrote it. rendered: laid out as the terminal shows it, without its line wrapping. Pressing Reply again while it shows ✓ copies the other.",
+      "default": "markdown",
+      "options": [
+        "markdown",
+        "rendered"
+      ]
+    },
+    "copiedNotice": {
+      "type": "string",
+      "title": "Copied notice",
+      "description": "Where \"copied\" is shown after a copy. above-button: a line above the pressed button (\"copied 5 lines\"). toast: a small box at the top right. above-prompt: a line above the prompt, at its right.",
+      "default": "above-button",
+      "options": [
+        "above-button",
+        "toast",
+        "above-prompt"
+      ]
+    }
+  }
+}
