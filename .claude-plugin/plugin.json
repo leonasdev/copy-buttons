@@ -32,11 +32,12 @@
     "blockHover": {
       "type": "string",
       "title": "Code block hover",
-      "description": "How a code block is marked while the pointer is over it, its copy button shown at its top right. highlight: the block on a grey card. bar: a bar at its left.",
+      "description": "How a code block is marked while the pointer is over it, its copy button shown at its top right. highlight: the block on a grey card. bar: a bar at its left. off: no hover; each block's button stays at the end of the answer (for a terminal that reports no pointer motion).",
       "default": "highlight",
       "options": [
         "highlight",
-        "bar"
+        "bar",
+        "off"
       ]
     },
     "copiedNotice": {

@@ -755,3 +755,11 @@ test('the highlight mark redraws the block\'s rows on a card', async ($, on) => 
   expect(await ui.find({ type: 'Text', text: '▎' })).toBeUndefined()
   await ui.unmount()
 })
+
+test('with the hover off every block keeps its button on the row', { options: { blockHover: 'off' } }, async ($, on) => {
+  engine(on)
+  const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
+  expect(await rowLabels(ui)).toEqual(['⧉ Reply', '⧉ bash 1', '⧉ bash 2', '⧉ ts'])
+  expect(await ui.find({ type: 'Client', key: 'copy-code:0' })).toBeUndefined()
+  await ui.unmount()
+})

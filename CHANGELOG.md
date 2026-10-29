@@ -16,5 +16,5 @@ First release.
   shows ✓ copies the other.
 - Tables copy as tab-separated rows for spreadsheets, or as rendered.
 - Settings: `icon` (`standard`, `nerd-font`), `replyFormat` (`markdown`,
-  `rendered`), `blockHover` (`highlight`, `bar`), `copiedNotice`
+  `rendered`), `blockHover` (`highlight`, `bar`, `off`), `copiedNotice`
   (`above-button`, `toast`, `above-prompt`).

@@ -30,7 +30,7 @@ Set them when installing, or later in `/config`.
 | --- | --- | --- |
 | Icon style | `standard`, `nerd-font` | The icon before each button: `⧉`, or the Nerd Font copy icon, which needs a Nerd Font. |
 | Copy reply as | `markdown`, `rendered` | What the first click on `Reply` copies. The second click copies the other. |
-| Code block hover | `highlight`, `bar` | How a code block is marked while the pointer is over it: on a grey card, or with a bar at its left. |
+| Code block hover | `highlight`, `bar`, `off` | How a code block is marked while the pointer is over it: on a grey card, or with a bar at its left. `off` shows no button on the block; each block's button stays at the end of the answer. |
 | Copied notice | `above-button`, `toast`, `above-prompt` | Where "copied" is shown after a copy: a line above the button, a toast at the top right, or a line above the prompt. |
 
 ## 🔍 How it works
@@ -56,6 +56,13 @@ The buttons need Claude Code's fullscreen mode: add `"tui": "fullscreen"` to `~/
 <summary>Some answers have no buttons</summary>
 
 Only a turn's final answer gets buttons, not the text Claude writes between tool calls.
+
+</details>
+
+<details>
+<summary>Nothing shows when the pointer is over a code block</summary>
+
+Your terminal reports clicks but not pointer motion, so Claude Code never sees the pointer over the block. Set Code block hover to `off` in `/config`: each block's button then stays at the end of the answer, where a click is enough.
 
 </details>
 

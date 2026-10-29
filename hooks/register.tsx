@@ -185,8 +185,9 @@ export const register: Register = (on, options) => {
   // copies the other. A table's first press copies it for a spreadsheet.
   const replyFormats: Format[] = options.replyFormat === 'rendered' ? ['rendered', 'markdown'] : ['markdown', 'rendered']
   // How a hovered code block is marked: its rows redrawn on a grey card, or a
-  // bar in the reply's left margin.
-  const blockHover = options.blockHover === 'bar' ? 'bar' : 'highlight'
+  // bar in the reply's left margin; or `off`, for a terminal that reports no
+  // pointer motion, every block's button kept on the closing line's row.
+  const blockHover = options.blockHover === 'bar' || options.blockHover === 'off' ? options.blockHover : 'highlight'
 
   // The band's line sits at its right end, in the place the engine's own copy
   // notice takes; with nothing to say the band is the engine's alone.
@@ -314,7 +315,7 @@ export const register: Register = (on, options) => {
     const columns = e.viewport?.columns ?? Infinity
     let blocks: Block[] = []
     let height = 0
-    if (Number.isFinite(columns)) {
+    if (blockHover !== 'off' && Number.isFinite(columns)) {
       const layout = layoutOf(e.requestId, text, columns)
       height = layout.rows.length + 1
       const at = `${e.requestId}:${columns}`
