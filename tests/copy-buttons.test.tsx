@@ -685,6 +685,16 @@ test('a block button sits past the widest row, else at the right, else as its ic
   expect(placeBlocks(layout, ['', 'a\tb'], 80, SIZES)).toEqual([])
 })
 
+test('a tab indenting a code line takes eight columns, and that block gets a button', () => {
+  const code = 'func worker() {\n\tfor j := range jobs {\n\t\tresults <- j\n\t}\n}'
+  const layout = layOut(['```go', code, '```'].join('\n'), 80)
+  // As the terminal drew a Go block indented with tabs.
+  expect(layout.rows).toEqual(['func worker() {', '        for j := range jobs {', '                results <- j', '        }', '}'])
+  expect(placeBlocks(layout, [code], 80, SIZES)).toHaveLength(1)
+  // A tab past the indent is not followed: that block gets none.
+  expect(placeBlocks(layout, ['\tname\tage'], 80, SIZES)).toEqual([])
+})
+
 test('a block as wide as the screen has its button at the right of the row it is drawn on', () => {
   const layout = { rows: ['ab', 'y'.repeat(37)], codeStarts: [0], codeEnds: [1] }
   const [block] = placeBlocks(layout, ['ab\n' + 'y'.repeat(37)], 40, SIZES)

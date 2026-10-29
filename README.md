@@ -69,7 +69,7 @@ Your terminal reports clicks but not pointer motion, so Claude Code never sees t
 <details>
 <summary>A code block has no button of its own</summary>
 
-Its button is at the end of the answer instead when the answer holds a table wider than the window (Claude Code narrows it in a way the plugin does not follow), when the block holds a tab, or for a moment after the answer is first drawn. An empty block has no button at all.
+Its button is at the end of the answer instead when the answer holds a table wider than the window (Claude Code narrows it in a way the plugin does not follow), when the block holds a tab anywhere but in a line's indent, or for a moment after the answer is first drawn. An empty block has no button at all.
 
 </details>
 
@@ -104,7 +104,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 ## ⚠️ Known limitations
 
 - The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.312; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
-- A code block's own button is not drawn in an answer holding a table wider than the window, nor on a block holding a tab.
+- A code block's own button is not drawn in an answer holding a table wider than the window, nor on a block holding a tab past a line's indent.
 - In a narrow window a block's button can cover the end of its first row while the pointer is over the block.
 - Not yet tested on macOS or native Windows.
 

@@ -44,6 +44,11 @@ export function wrap(text: string, columns: number): string[] {
   return rows.map((row, i) => (i === 0 ? row : row.trimStart()))
 }
 
+// A tab that indents a code line is drawn as eight columns, wherever the
+// line starts.
+const TAB = ' '.repeat(8)
+const untab = (text: string) => text.replace(/^\t+/, tabs => TAB.repeat(tabs.length))
+
 // The reply's rows on a screen `columns` wide, past its bullet's two columns,
 // and the first and last row of each code block. A table wider than the
 // screen, which the terminal narrows, is not followed: the rows are trusted
@@ -54,7 +59,8 @@ export function layOut(markdown: string, columns: number): Layout {
   const width = columns - 2
   const layout: Layout = { rows: [], codeStarts: [], codeEnds: [] }
   const isCode: boolean[] = []
-  for (const line of renderLines(markdown)) {
+  for (const drawn of renderLines(markdown)) {
+    const line = drawn.isCode === true ? { ...drawn, text: untab(drawn.text) } : drawn
     const hang = line.isFlush === true ? 0 : (line.hang ?? 0)
     if (line.isCodeStart === true) layout.codeStarts.push(layout.rows.length)
     wrap(line.text.slice(hang), width - hang).forEach((row, i) => {
