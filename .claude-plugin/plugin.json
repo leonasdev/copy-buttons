@@ -29,6 +29,16 @@
         "rendered"
       ]
     },
+    "blockHover": {
+      "type": "string",
+      "title": "Code block hover",
+      "description": "How a code block is marked while the pointer is over it, its copy button shown at its top right. highlight: the block on a grey card. bar: a bar at its left.",
+      "default": "highlight",
+      "options": [
+        "highlight",
+        "bar"
+      ]
+    },
     "copiedNotice": {
       "type": "string",
       "title": "Copied notice",

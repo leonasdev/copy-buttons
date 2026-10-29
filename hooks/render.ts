@@ -8,8 +8,10 @@ import { widthOf } from './width'
 // Markdown is not read. Each rule below was taken from the terminal's drawing.
 
 // A rendered line; `isFlush` keeps it at the left edge inside a list, where
-// the terminal draws code blocks and quotes unindented.
-type Line = { text: string; isFlush?: true }
+// the terminal draws code blocks and quotes unindented. `hang` is where its
+// wrapped rows start (past a list item's marker); `isCode` marks a code
+// block's line, `isCodeStart` its first.
+export type Line = { text: string; isFlush?: true; hang?: number; isCode?: true; isCodeStart?: true }
 
 // Inline marks are dropped (`**`, `*`, backticks), entities left as written
 // (`&amp;`); a link reads `text (url)`, `text (url) ("title")` with a title,
@@ -76,9 +78,10 @@ function list(token: Tokens.List, depth: number): Line[] {
     const pad = ' '.repeat(marker.length + 1)
     const body = blocks(item.tokens, depth + 1)
     body.forEach((line, j) => {
-      if (j === 0) lines.push({ text: lead + line.text })
+      const hang = pad.length + (line.hang ?? 0)
+      if (j === 0) lines.push({ ...line, text: lead + line.text, hang })
       else if (line.isFlush === true || line.text === '') lines.push(line)
-      else lines.push({ text: pad + line.text })
+      else lines.push({ ...line, text: pad + line.text, hang })
     })
   })
   return lines
@@ -118,11 +121,20 @@ function block(token: Token, depth: number): Line[] {
     case 'text':
       return toLines('tokens' in token && token.tokens !== undefined ? inline(token.tokens) : token.text)
     case 'code':
-      return toLines(token.text).map(line => ({ ...line, isFlush: true as const }))
+      return toLines(token.text).map((line, i) => ({
+        ...line,
+        isFlush: true as const,
+        isCode: true as const,
+        ...(i === 0 ? { isCodeStart: true as const } : {}),
+      }))
     case 'hr':
       return [{ text: '---' }]
     case 'blockquote':
-      return blocks(token.tokens, depth).map(line => ({ text: line.text === '' ? '▎' : `▎ ${line.text}`, isFlush: true as const }))
+      return blocks(token.tokens, depth).map(line => ({
+        ...line,
+        text: line.text === '' ? '▎' : `▎ ${line.text}`,
+        isFlush: true as const,
+      }))
     case 'list':
       return list(token as Tokens.List, depth)
     case 'table':
@@ -186,3 +198,7 @@ export function renderReply(markdown: string): string {
     .map(line => line.text.replace(/\s+$/, ''))
     .join('\n')
 }
+
+// The reply's lines as `renderReply` lays them out, with what the wrapping
+// at the screen's width needs.
+export const renderLines = (markdown: string): Line[] => blocks(lex(markdown), 0)

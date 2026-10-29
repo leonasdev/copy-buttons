@@ -8,8 +8,12 @@ import type { RowItem, RowPress } from './row'
 import type { Action } from './fit'
 import { copyables } from './blocks'
 import type { Copyable } from './blocks'
+import { onScreenPart, placeBlocks, placeOn } from './place'
+import type { Block, ButtonSizes } from './place'
 import { isFinalAnswer, knownVerdict } from './transcript'
 import { widthOf } from './width'
+import { layOut } from './wrap'
+import type { Layout } from './wrap'
 
 const DONE_MS = 1500
 const ROW_RIGHT = 2
@@ -34,8 +38,9 @@ const linesOf = (text: string) => count(text.split('\n').length, 'line')
 const hintFor = (other: Format) => ` · click again for ${other}`
 // The transcript's closing row may land a moment after the turn's end.
 const SETTLE_MS = 500
+const STANDARD_ICON = '⧉'
 const ICONS: Record<string, string> = {
-  standard: '⧉',
+  standard: STANDARD_ICON,
   'nerd-font': '\u{F018F}', // nf-md-content_copy
 }
 
@@ -139,17 +144,49 @@ function partsOf(requestId: string, text: string): Parts {
   return found
 }
 
+// A final answer's rows at a width, laid out once per text and width.
+const layouts = new Map<string, { text: string; columns: number; layout: Layout }>()
+
+function layoutOf(requestId: string, text: string, columns: number): Layout {
+  const known = layouts.get(requestId)
+  if (known?.text === text && known.columns === columns) return known.layout
+  const layout = layOut(text, columns)
+  layouts.set(requestId, { text, columns, layout })
+  return layout
+}
+
+// Whether a reply's laid-out height was the engine's at a width, by
+// `<requestId>:<columns>`: the engine says so only once it has drawn it.
+const agreed = new Map<string, boolean>()
+
+// A code block's own button reads `copy`, and `copied` for the moment after
+// a copy.
+const BLOCK_LABEL = 'copy'
+const BLOCK_DONE = 'copied'
+
+// A button as its icon alone: a space after it, which an icon drawn wider
+// than its column (a Nerd Font's, often) spills into.
+const compactOf = (glyph: string) => `${glyph} `
+
 // What each drawn row's clicks reach, by the reply's requestId: its actions
 // by key, and its page turn. Kept from the row's last draw.
 const rows = new Map<string, { actions: Map<string, Action>; turnPage: (by: number) => Promise<unknown> }>()
 
 export const register: Register = (on, options) => {
-  const icon = ICONS[String(options.icon)] ?? ICONS.standard
+  const icon = ICONS[String(options.icon)] ?? STANDARD_ICON
+  // Room for the wider of a block button's two labels, whole or as icons.
+  const sizes: ButtonSizes = {
+    whole: 2 + Math.max(widthOf(BLOCK_LABEL), widthOf(BLOCK_DONE)),
+    compact: Math.max(widthOf(compactOf(icon)), widthOf(compactOf('✓'))),
+  }
   const noticeAt: NoticeAt =
     options.copiedNotice === 'toast' || options.copiedNotice === 'above-prompt' ? options.copiedNotice : 'above-button'
   // The reply's first press copies this format; a press while it reads ✓
   // copies the other. A table's first press copies it for a spreadsheet.
   const replyFormats: Format[] = options.replyFormat === 'rendered' ? ['rendered', 'markdown'] : ['markdown', 'rendered']
+  // How a hovered code block is marked: its rows redrawn on a grey card, or a
+  // bar in the reply's left margin.
+  const blockHover = options.blockHover === 'bar' ? 'bar' : 'highlight'
 
   // The band's line sits at its right end, in the place the engine's own copy
   // notice takes; with nothing to say the band is the engine's alone.
@@ -269,11 +306,32 @@ export const register: Register = (on, options) => {
         return { ...base, key: `copy-code:${n}`, text: part.code, isFile: part.file !== undefined, size: linesOf }
       }),
     ]
+    // Each code block gets a button of its own, shown while the pointer is
+    // over it, and is left off the closing line's row; but only while the
+    // reply's laid-out height is the engine's (its rows and the blank one
+    // above them) and its code blocks are the layout's one for one, so no
+    // button lands on a wrong row. Else every block stays on the row.
+    const columns = e.viewport?.columns ?? Infinity
+    let blocks: Block[] = []
+    let height = 0
+    if (Number.isFinite(columns)) {
+      const layout = layoutOf(e.requestId, text, columns)
+      height = layout.rows.length + 1
+      const at = `${e.requestId}:${columns}`
+      const of = e.props.onScreen?.of
+      if (of !== undefined) agreed.set(at, of === height)
+      const codes = parts.flatMap(part => (part.kind === 'code' ? [part.code] : []))
+      if (agreed.get(at) === true && layout.codeStarts.length === codes.length) {
+        blocks = placeBlocks(layout, codes, columns, sizes)
+      }
+    }
+    const blockKey = (block: Block) => `copy-code:${block.index}`
+    const onRow = all.filter(action => !blocks.some(block => blockKey(block) === action.key))
+
     // Whole labels beside the closing line's own text if they fit; else on the
     // blank row above it, which has the reply's indent of room to spare, whole,
     // then cut short, then paged. A copy above is told by its ✓ alone.
-    const columns = e.viewport?.columns ?? Infinity
-    const { isAbove, items } = layoutRow(all, columns - ROW_RIGHT - CLOSING_LINE, columns - ROW_RIGHT - 2, page)
+    const { isAbove, items } = layoutRow(onRow, columns - ROW_RIGHT - CLOSING_LINE, columns - ROW_RIGHT - 2, page)
     const turnPage = (by: number) =>
       update($, pages, old => ({ ...old, [e.requestId]: Math.max(0, (old[e.requestId] ?? 0) + by) }))
     rows.set(e.requestId, { actions: new Map(all.map(action => [action.key, action])), turnPage })
@@ -308,15 +366,74 @@ export const register: Register = (on, options) => {
     const hint = done?.other === undefined ? '' : hintFor(done.other)
     const labelWidth = widthOf(label + hint)
 
+    // Each block a hover scope over its rows, from the reply's left edge to
+    // its card's end, drawn under the reply. While the pointer is in one, its
+    // mark and its button show over the reply: the block's rows redrawn as
+    // drawn, on a grey card a column wider each side, or a bar in the left
+    // margin; with the pointer gone, all of it goes. A press shows the
+    // button's ✓ a moment whatever the pointer does: a plain copy of it lies
+    // under the mark, seen once the pointer leaves. A Box placed past the
+    // rows the viewport shows is held at its edge, over other rows, so a block
+    // is drawn only as far as it shows, its button on its first row there.
+    const scopeOf = (block: Block) => `${e.requestId}:${blockKey(block)}`
+    const shown = blocks.flatMap(block => {
+      const part = onScreenPart(block, e.props.onScreen)
+      return part === undefined ? [] : [{ block, ...part }]
+    })
+    const scopes = shown.map(({ block, from, lines }) => (
+      <Box key={`scope-${blockKey(block)}`} position="absolute" top={from} left={0} width={block.right} height={lines.length} hover={{ scope: scopeOf(block) }} />
+    ))
+    const marks = shown.flatMap(({ block, from, lines }) => {
+      const key = blockKey(block)
+      const reveal = { display: 'none', hover: { scope: scopeOf(block), display: 'flex' } } as const
+      const { at, isCompact, isOver } = placeOn(block, from - block.top, columns, sizes)
+      const isDone = done?.id === `${e.requestId}:${key}`
+      const labelled = isCompact ? compactOf(isDone ? '✓' : icon) : isDone ? `✓ ${BLOCK_DONE}` : `${icon} ${BLOCK_LABEL}`
+      const buttonText = isOver ? ` ${labelled}` : labelled
+      const width = widthOf(buttonText)
+      const item: RowItem = { key, text: buttonText, from: 0, to: width, tone: isDone ? 'done' : 'idle' }
+      const onCard = blockHover === 'highlight' ? { background: 'subtle' } : {}
+      const mark =
+        blockHover === 'highlight' ? (
+          <Box key={`mark-${key}`} position="absolute" top={from - height} left={1} width={block.right - 1} height={lines.length} flexDirection="column" paddingLeft={1} backgroundColor="subtle" {...reveal}>
+            {lines.map((line, i) => <Text key={String(i)} wrap="truncate-end">{line === '' ? ' ' : line}</Text>)}
+          </Box>
+        ) : (
+          <Box key={`mark-${key}`} position="absolute" top={from - height} left={0} width={1} height={lines.length} flexDirection="column" {...reveal}>
+            {lines.map((_, i) => <Text key={String(i)} color="suggestion">▎</Text>)}
+          </Box>
+        )
+      return [
+        ...(isDone
+          ? [
+              <Box key={`copied-${key}`} position="absolute" top={from - height} left={at}>
+                <Client key={`${key}:copied`} module="./row.ts" props={{ items: [item], gap: GAP }} width={width} height={1} />
+              </Box>,
+            ]
+          : []),
+        mark,
+        <Box key={`button-${key}`} position="absolute" top={from - height} left={at} {...reveal}>
+          <Client key={key} module="./row.ts" props={{ items: [item], gap: GAP, look: 'accent', ...onCard }} width={width} height={1} />
+        </Box>,
+      ]
+    })
+
     // The engine draws the reply as it always does. The actions take no row of
     // their own: they sit at the right end of the turn's closing line
     // (`✻ Cooked for …`), which the engine draws two rows below the reply,
     // and `copied 5 lines` shows in the blank row above the one just pressed, its
-    // first letter over that action's ✓.
+    // first letter over that action's ✓. The blocks' scopes sit before the
+    // reply, their marks after it.
     return (
       <Box flexDirection="column">
+        {scopes.length > 0 && (
+          <Box height={0} width="100%" position="relative">
+            {scopes}
+          </Box>
+        )}
         {drawn}
         <Box height={0} width="100%" position="relative">
+          {marks}
           {noticeAt === 'above-button' && !isAbove && doneAt >= 0 && (
             <Box
               position="absolute"

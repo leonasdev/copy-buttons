@@ -4,7 +4,13 @@ import type { ClientModule } from 'claude-code'
 // it spans (`from` inclusive, `to` exclusive, gaps not included), and how it
 // reads: a copy action at rest, one whose copy just landed, or a page button.
 export type RowItem = { key: string; text: string; from: number; to: number; tone: 'idle' | 'done' | 'page' }
-export type RowProps = { items: RowItem[]; gap: number }
+// How a row's actions light under the pointer, dim at rest either way: to
+// plain text (the closing line's row), or to the accent colour (a code
+// block's button, the colour its bar is drawn in).
+export type Look = 'subtle' | 'accent'
+
+// `background`, where the row sits on a tinted card, fills its cells.
+export type RowProps = { items: RowItem[]; gap: number; background?: string; look?: Look }
 
 // What the row posts to the hooks module: the item a click landed on.
 export type RowPress = { key: string }
@@ -14,8 +20,9 @@ type RowState = { hovered: string | null }
 // The row of copy actions, drawn in a region of its own: the pointer there is
 // this module's, so the engine neither selects nor copies the words under a
 // click, nor a double click's word. Every click is a press, a quick second
-// one too. An item under the pointer inverts, as a Button does, unless its
-// copy just landed: that one reads plain green.
+// one too. An item under the pointer lights up in bold, its colour changed
+// too for a terminal that draws no bold, unless its copy just landed: that
+// one reads plain green.
 const Row: ClientModule<RowProps, RowState> = (props, surface) => {
   const { Box, Text } = surface.elements
   const hovered = surface.state?.hovered ?? null
@@ -35,11 +42,17 @@ const Row: ClientModule<RowProps, RowState> = (props, surface) => {
     flexDirection: 'row',
     children: props.items.flatMap((item, i) => {
       const isHovered = item.key === hovered && item.tone !== 'done'
-      const text =
-        item.tone === 'done'
-          ? Text({ color: 'success', children: item.text })
-          : Text({ dimColor: !isHovered, inverse: isHovered ? true : undefined, children: item.text })
-      return i === 0 ? [text] : [Text({ children: ' '.repeat(props.gap) }), text]
+      const backgroundColor = props.background
+      let text
+      if (item.tone === 'done') {
+        text = Text({ color: 'success', backgroundColor, children: item.text })
+      } else if (isHovered) {
+        const color = props.look === 'accent' ? 'suggestion' : undefined
+        text = Text({ bold: true, ...(color === undefined ? {} : { color }), backgroundColor, children: item.text })
+      } else {
+        text = Text({ dimColor: true, backgroundColor, children: item.text })
+      }
+      return i === 0 ? [text] : [Text({ backgroundColor, children: ' '.repeat(props.gap) }), text]
     }),
   })
 }

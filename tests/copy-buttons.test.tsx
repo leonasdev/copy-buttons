@@ -7,6 +7,8 @@ import { widthOf } from '../hooks/width'
 import { renderReply } from '../hooks/render'
 import type { RowItem, RowProps } from '../hooks/row'
 import { fold, useReader } from '../hooks/transcript'
+import { onScreenPart, placeBlocks, placeOn } from '../hooks/place'
+import { layOut, wrap } from '../hooks/wrap'
 
 const ANSWER = [
   'Run this:',
@@ -482,7 +484,7 @@ test('the row is its own region: a quick second click is a second press', async 
   await ui.unmount()
 })
 
-test('the row inverts the item under the pointer, but not one that reads ✓', async ($, on) => {
+test('the row brightens the item under the pointer, but not one that reads ✓', async ($, on) => {
   engine(on)
   on('ui.copy', () => ({ value: { isCopied: true } }))
   const ui = await $.ui.mount(MESSAGE)
@@ -490,17 +492,20 @@ test('the row inverts the item under the pointer, but not one that reads ✓', a
   const reply = await item(ui, 'copy-reply')
 
   await ui.pointer({ type: 'move', x: reply?.from ?? 0, y: 0, in: 'row' })
-  expect((await drawnText('⧉ Reply'))?.props.inverse).toBe(true)
-  expect((await drawnText('⧉ bash 1'))?.props.inverse).toBeUndefined()
+  expect((await drawnText('⧉ Reply'))?.props.bold).toBe(true)
+  expect((await drawnText('⧉ Reply'))?.props.dimColor).toBeUndefined()
+  expect((await drawnText('⧉ Reply'))?.props.inverse).toBeUndefined()
+  expect((await drawnText('⧉ bash 1'))?.props.dimColor).toBe(true)
 
   await click(ui, 'copy-reply')
   await ui.pointer({ type: 'move', x: reply?.from ?? 0, y: 0, in: 'row' })
   const copiedReply = await drawnText('✓ Reply')
   expect(copiedReply?.props.color).toBe('success')
   expect(copiedReply?.props.inverse).toBeUndefined()
+  expect(copiedReply?.props.bold).toBeUndefined()
 
   await ui.pointer({ type: 'leave', x: 0, y: 0, in: 'row' })
-  expect((await drawnText('⧉ bash 1'))?.props.inverse).toBeUndefined()
+  expect((await drawnText('⧉ bash 1'))?.props.dimColor).toBe(true)
   await ui.unmount()
 })
 
@@ -610,5 +615,143 @@ test('other surfaces keep the engine drawing alone', async ($, on) => {
   engine(on)
   const ui = await $.ui.mount({ ...MESSAGE, surface: 'desktop' })
   expect(await ui.find({ type: 'Client' })).toBeUndefined()
+  await ui.unmount()
+})
+
+// Rows as a terminal drew them, the reply's two columns of indent taken off.
+test('a line wraps as the terminal wraps it: at spaces, a word wider than the row broken', () => {
+  const printf = `printf '[popup]\\nview = "sidebar"\\n' > $d/config.toml   # 用 sidebar 模式，agent 才會在 popup 裡`
+  expect(wrap(printf, 48).map(row => row.trimEnd())).toEqual([
+    `printf '[popup]\\nview = "sidebar"\\n' >`,
+    '$d/config.toml   # 用 sidebar 模式，agent 才會在',
+    'popup 裡',
+  ])
+  const cat = 'cat ~/.local/state/tmux-agents/main.json'
+  expect(wrap(cat, 38).map(row => row.trimEnd())).toEqual(['cat', '~/.local/state/tmux-agents/main.json'])
+  expect(wrap(cat, 28)).toEqual(['cat ~/.local/state/tmux-agen', 'ts/main.json'])
+})
+
+test('a reply lays out as the terminal draws it: list rows under their text, code flush', () => {
+  const markdown = [
+    '1. `C-a ,` 把目前的 window 改名成 `api`。',
+    '2. `C-a Space` 打開 popup，在裡面跑 `claude`，**問它一句話並等它回答**。沒有任何對話的 session 可能沒辦法 resume。',
+    '   - 想多試幾個的話，在 popup 裡按 `C-a c` 再開一個 agent。',
+    '3. 從另一個終端機確認有記下來：',
+    '   ```sh',
+    '   cat ~/.local/state/tmux-agents/main.json',
+    '   ```',
+    '   裡面應該有 `"window": "api"`。',
+  ].join('\n')
+  const layout = layOut(markdown, 50)
+  expect(layout.rows.map(row => row.trimEnd())).toEqual([
+    '1. C-a , 把目前的 window 改名成 api。',
+    '2. C-a Space 打開 popup，在裡面跑',
+    '   claude，問它一句話並等它回答。沒有任何對話的',
+    '   session 可能沒辦法 resume。',
+    '   - 想多試幾個的話，在 popup 裡按 C-a c',
+    '     再開一個 agent。',
+    '3. 從另一個終端機確認有記下來：',
+    'cat ~/.local/state/tmux-agents/main.json',
+    '   裡面應該有 "window": "api"。',
+  ])
+  expect(layout.codeStarts).toEqual([7])
+  expect(layout.codeEnds).toEqual([7])
+})
+
+test('a code block in a quote counts, and a block ends where the next one starts', () => {
+  const markdown = ['> ```sh', '> echo quoted', '> ```', '', '    indented code block', '', '```diff', '- old', '+ new', '```'].join('\n')
+  const layout = layOut(markdown, 80)
+  expect(layout.rows).toEqual(['▎ echo quoted', '', 'indented code block', '- old', '+ new'])
+  expect(layout.codeStarts).toEqual([0, 2, 3])
+  expect(layout.codeEnds).toEqual([0, 2, 4])
+})
+
+const SIZES = { whole: 8, compact: 2 }
+
+test('a block button sits past the widest row, else at the right, else as its icon', () => {
+  const layout = { rows: ['short', 'a much longer row of code', 'x'.repeat(40)], codeStarts: [0, 2], codeEnds: [1, 2] }
+  const codes = ['short\na much longer row of code', 'x'.repeat(40)]
+  // Wide: each past its own widest row, its card ending a column after it.
+  expect(placeBlocks(layout, codes, 80, SIZES)).toEqual([
+    { index: 0, top: 1, rows: ['short', 'a much longer row of code'], right: 38, isCompact: false, pastWidest: 29 },
+    { index: 1, top: 3, rows: ['x'.repeat(40)], right: 53, isCompact: false, pastWidest: 44 },
+  ])
+  // Narrower: the long block's icon alone past it; narrower still, over its end.
+  expect(placeBlocks(layout, codes, 50, SIZES)[1]).toMatchObject({ right: 47, isCompact: true, pastWidest: 44 })
+  const covering = placeBlocks(layout, codes, 45, SIZES)[1]
+  expect(covering).toMatchObject({ right: 45, isCompact: true })
+  expect(placeOn(covering!, 0, 45, SIZES)).toEqual({ at: 42, isCompact: true, isOver: true })
+  // An empty block, or one holding a tab, gets none.
+  expect(placeBlocks(layout, ['', 'a\tb'], 80, SIZES)).toEqual([])
+})
+
+test('a block as wide as the screen has its button at the right of the row it is drawn on', () => {
+  const layout = { rows: ['ab', 'y'.repeat(37)], codeStarts: [0], codeEnds: [1] }
+  const [block] = placeBlocks(layout, ['ab\n' + 'y'.repeat(37)], 40, SIZES)
+  expect(block).toMatchObject({ right: 40, isCompact: false })
+  expect(block?.pastWidest).toBeUndefined()
+  // Whole where the row leaves room; over the end of a row that leaves none.
+  expect(placeOn(block!, 0, 40, SIZES)).toEqual({ at: 31, isCompact: false, isOver: false })
+  expect(placeOn(block!, 1, 40, SIZES)).toEqual({ at: 37, isCompact: true, isOver: true })
+})
+
+test('a block is drawn only as far as it shows on screen', () => {
+  const block = { index: 0, top: 5, rows: ['a', 'b', 'c', 'd'], right: 10, isCompact: false }
+  expect(onScreenPart(block, { first: 0, last: 100 })).toEqual({ from: 5, lines: ['a', 'b', 'c', 'd'] })
+  expect(onScreenPart(block, { first: 7, last: 100 })).toEqual({ from: 7, lines: ['c', 'd'] })
+  expect(onScreenPart(block, { first: 0, last: 6 })).toEqual({ from: 5, lines: ['a', 'b'] })
+  expect(onScreenPart(block, { first: 9, last: 100 })).toBeUndefined()
+  expect(onScreenPart(block, null)).toBeUndefined()
+  expect(onScreenPart(block, undefined)).toEqual({ from: 5, lines: ['a', 'b', 'c', 'd'] })
+})
+
+// ANSWER on a screen 61 columns wide: its eight rows and the blank row above.
+const HOVERED = { ...MESSAGE, viewport: { columns: 61, rows: 40 } }
+const onScreen = (of: number) => ({ ...MESSAGE.props, onScreen: { first: 0, last: of - 1, of } })
+const blockButton = async (ui: Mounted, key: string) =>
+  ((await ui.find({ type: 'Client', key }))?.props.props as RowProps | undefined)?.items[0]?.text
+const rowLabels = async (ui: Mounted) =>
+  (((await ui.find({ type: 'Client', key: 'row' }))?.props.props as RowProps | undefined)?.items ?? []).map(one => one.text)
+
+test('each code block gets its own button once the engine agrees on the reply\'s height', async ($, on) => {
+  engine(on)
+  const copied: string[] = []
+  on('ui.copy', (_, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
+  const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
+  expect(await rowLabels(ui)).toEqual(['⧉ Reply'])
+  expect(await blockButton(ui, 'copy-code:1')).toBe('⧉ copy')
+
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'copy-code:1' })
+  expect(copied).toEqual(['pwd'])
+  expect(await blockButton(ui, 'copy-code:1')).toBe('✓ copied')
+  // A plain ✓ under the mark, seen once the pointer leaves the block.
+  expect(await blockButton(ui, 'copy-code:1:copied')).toBe('✓ copied')
+  await ui.unmount()
+})
+
+test('a reply whose height the engine does not agree on keeps its blocks on the row', async ($, on) => {
+  engine(on)
+  const ui = await $.ui.mount({ ...HOVERED, props: onScreen(12) })
+  expect(await rowLabels(ui)).toEqual(['⧉ Reply', '⧉ bash 1', '⧉ bash 2', '⧉ ts'])
+  expect(await ui.find({ type: 'Client', key: 'copy-code:0' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the bar mark draws a bar beside the block instead of a card', { options: { blockHover: 'bar' } }, async ($, on) => {
+  engine(on)
+  const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
+  expect(await ui.find({ type: 'Text', text: '▎' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'pwd' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the highlight mark redraws the block\'s rows on a card', async ($, on) => {
+  engine(on)
+  const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
+  expect(await ui.find({ type: 'Text', text: 'pwd' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '▎' })).toBeUndefined()
   await ui.unmount()
 })

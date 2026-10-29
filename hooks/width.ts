@@ -5,7 +5,8 @@
 
 const segmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter() : undefined
 
-const graphemes = (text: string): Iterable<string> =>
+// What draws as one character each, in order.
+export const graphemes = (text: string): Iterable<string> =>
   segmenter === undefined ? Array.from(text) : Array.from(segmenter.segment(text), part => part.segment)
 
 // Drawn as an emoji: a character shown as one by default, one a variation
