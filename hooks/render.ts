@@ -9,10 +9,10 @@ import { widthOf } from './width'
 
 // A rendered line; `isFlush` keeps it at the left edge inside a list, where
 // the terminal draws code blocks and quotes unindented. `hang` is where its
-// wrapped rows start (past a list item's marker); `isCode` marks a code
-// block's line, `isCodeStart` its first, and `codeAt` is where its code
-// starts (past a quote's `▎ `).
-export type Line = { text: string; isFlush?: true; hang?: number; isCode?: true; isCodeStart?: true; codeAt?: number }
+// wrapped rows start (past a list item's marker); `part` marks a code
+// block's or a table's line, `isPartStart` its first, and `codeAt` is where
+// a code line's code starts (past a quote's `▎ `).
+export type Line = { text: string; isFlush?: true; hang?: number; part?: 'code' | 'table'; isPartStart?: true; codeAt?: number }
 
 // Inline marks are dropped (`**`, `*`, backticks), entities left as written
 // (`&amp;`); a link reads `text (url)`, `text (url) ("title")` with a title,
@@ -111,7 +111,7 @@ function table(token: Tokens.Table): Line[] {
     lines.push(rule('├', '┼', '┤'), row(cells, c => token.align[c] ?? null))
   }
   lines.push(rule('└', '┴', '┘'))
-  return lines.map(text => ({ text }))
+  return lines.map((text, i) => ({ text, part: 'table' as const, ...(i === 0 ? { isPartStart: true as const } : {}) }))
 }
 
 function block(token: Token, depth: number): Line[] {
@@ -125,8 +125,8 @@ function block(token: Token, depth: number): Line[] {
       return toLines(token.text).map((line, i) => ({
         ...line,
         isFlush: true as const,
-        isCode: true as const,
-        ...(i === 0 ? { isCodeStart: true as const } : {}),
+        part: 'code' as const,
+        ...(i === 0 ? { isPartStart: true as const } : {}),
       }))
     case 'hr':
       return [{ text: '---' }]
@@ -135,7 +135,7 @@ function block(token: Token, depth: number): Line[] {
         ...line,
         text: line.text === '' ? '▎' : `▎ ${line.text}`,
         isFlush: true as const,
-        ...(line.isCode === true ? { codeAt: (line.codeAt ?? 0) + 2 } : {}),
+        ...(line.part === 'code' ? { codeAt: (line.codeAt ?? 0) + 2 } : {}),
       }))
     case 'list':
       return list(token as Tokens.List, depth)

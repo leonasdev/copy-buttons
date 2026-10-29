@@ -60,30 +60,31 @@ function untab(text: string, from: number): string {
 }
 
 // The reply's rows on a screen `columns` wide, past its bullet's two columns,
-// and the first and last row of each code block. A table wider than the
-// screen, which the terminal narrows, is not followed: the rows are trusted
-// only while their count is the engine's.
-export type Layout = { rows: string[]; codeStarts: number[]; codeEnds: number[] }
+// and its code blocks and tables in reading order, each by its first and
+// last row. A table wider than the screen, which the terminal narrows, is
+// not followed: the rows are trusted only while their count is the engine's.
+export type Span = { kind: 'code' | 'table'; start: number; end: number }
+export type Layout = { rows: string[]; parts: Span[] }
 
 export function layOut(markdown: string, columns: number): Layout {
   const width = columns - 2
-  const layout: Layout = { rows: [], codeStarts: [], codeEnds: [] }
-  const isCode: boolean[] = []
+  const layout: Layout = { rows: [], parts: [] }
+  const kinds: (Span['kind'] | undefined)[] = []
   for (const drawn of renderLines(markdown)) {
-    const line = drawn.isCode === true ? { ...drawn, text: untab(drawn.text, drawn.codeAt ?? 0) } : drawn
+    const line = drawn.part === 'code' ? { ...drawn, text: untab(drawn.text, drawn.codeAt ?? 0) } : drawn
     const hang = line.isFlush === true ? 0 : (line.hang ?? 0)
-    if (line.isCodeStart === true) layout.codeStarts.push(layout.rows.length)
+    if (line.part !== undefined && line.isPartStart === true) {
+      layout.parts.push({ kind: line.part, start: layout.rows.length, end: layout.rows.length })
+    }
     wrap(line.text.slice(hang), width - hang).forEach((row, i) => {
       layout.rows.push((i === 0 ? line.text.slice(0, hang) : ' '.repeat(hang)) + row)
-      isCode.push(line.isCode === true)
+      kinds.push(line.part)
     })
   }
-  // A block ends at its last code row before the next block starts.
-  layout.codeEnds = layout.codeStarts.map((start, n) => {
-    const next = layout.codeStarts[n + 1] ?? layout.rows.length
-    let end = start
-    while (end + 1 < next && isCode[end + 1] === true) end++
-    return end
+  // A part ends at its last row of its kind before the next part starts.
+  layout.parts.forEach((part, n) => {
+    const next = layout.parts[n + 1]?.start ?? layout.rows.length
+    while (part.end + 1 < next && kinds[part.end + 1] === part.kind) part.end++
   })
   return layout
 }

@@ -9,7 +9,7 @@ import type { Action } from './fit'
 import { copyables } from './blocks'
 import type { Copyable } from './blocks'
 import { onScreenPart, placeBlocks, placeOn } from './place'
-import type { Block, ButtonSizes } from './place'
+import type { Block, SizesOf } from './place'
 import { isFinalAnswer, knownVerdict } from './transcript'
 import { widthOf } from './width'
 import { layOut } from './wrap'
@@ -106,8 +106,8 @@ async function copy($: EngineInterface, what: Copy, surface: RenderSurface, noti
 }
 
 // A press as the person meant it, read at the moment it lands: the first
-// format, or, while the action's last copy still shows ✓, the other one (a
-// block, with one format, copies again).
+// format, or, while the action's last copy still shows ✓, the next one in
+// turn (a block, with one format, copies again).
 // Resolves to the text it put on the clipboard.
 async function pressAction(
   $: EngineInterface,
@@ -119,9 +119,9 @@ async function pressAction(
   const id = `${requestId}:${action.key}`
   const done = await read($, copied)
   const formats = action.formats ?? []
-  const at = done?.id === id && done.other !== undefined ? formats.findIndex(f => f.format === done.other) : 0
-  const chosen = formats[Math.max(0, at)]
-  const other = formats.find(f => f !== chosen)?.format
+  const at = Math.max(0, done?.id === id && done.other !== undefined ? formats.findIndex(f => f.format === done.other) : 0)
+  const chosen = formats[at]
+  const other = formats.length > 1 ? formats[(at + 1) % formats.length]?.format : undefined
   const text = chosen === undefined ? action.text : chosen.text()
   await copy($, { id, text, size: (action.size ?? linesOf)(text), format: chosen?.format, other }, surface, noticeAt)
   return text
@@ -159,10 +159,25 @@ function layoutOf(requestId: string, text: string, columns: number): Layout {
 // `<requestId>:<columns>`: the engine says so only once it has drawn it.
 const agreed = new Map<string, boolean>()
 
-// A code block's own button reads `copy`, and `copied` for the moment after
-// a copy.
+// A code block's own button reads `copy`; a table's three, one under
+// another, read the format each copies: `markdown` as Claude wrote it,
+// `sheet` as rows a spreadsheet pastes, `boxed` with its borders as drawn.
+// Each reads `copied` for the moment after a copy.
 const BLOCK_LABEL = 'copy'
+const TABLE_LABELS = ['markdown', 'sheet', 'boxed'] as const
 const BLOCK_DONE = 'copied'
+
+// A table's own buttons press actions of their own, one format each.
+const tableKey = (label: string, n: number) => `copy-table-${label}:${n}`
+
+// The buttons a part shows in one of its sizes (`SizesOf`), each on a row of
+// its own, by the action it presses and the label it reads at rest (none:
+// its icon alone, which for a table copies its markdown).
+function buttonsOf(kind: Block['kind'], size: number, n: number): { key: string; label?: string }[] {
+  if (kind === 'code') return [{ key: `copy-code:${n}`, ...(size === 0 ? { label: BLOCK_LABEL } : {}) }]
+  if (size === 0) return TABLE_LABELS.map(label => ({ key: tableKey(label, n), label }))
+  return [{ key: tableKey('markdown', n) }]
+}
 
 // A button as its icon alone: a space after it, which an icon drawn wider
 // than its column (a Nerd Font's, often) spills into.
@@ -174,15 +189,19 @@ const rows = new Map<string, { actions: Map<string, Action>; turnPage: (by: numb
 
 export const register: Register = (on, options) => {
   const icon = ICONS[String(options.icon)] ?? STANDARD_ICON
-  // Room for the wider of a block button's two labels, whole or as icons.
-  const sizes: ButtonSizes = {
-    whole: 2 + Math.max(widthOf(BLOCK_LABEL), widthOf(BLOCK_DONE)),
-    compact: Math.max(widthOf(compactOf(icon)), widthOf(compactOf('✓'))),
-  }
+  // A button's room: its icon and the widest of the labels it can read, or
+  // its icon alone. A code block's sizes are its button whole or as its icon;
+  // a table's its three buttons, one under another, or one as its icon.
+  const wholeOf = (labels: readonly string[]) => 2 + Math.max(...[...labels, BLOCK_DONE].map(widthOf))
+  const compact = { width: Math.max(widthOf(compactOf(icon)), widthOf(compactOf('✓'))), height: 1 }
+  const codeSizes = [{ width: wholeOf([BLOCK_LABEL]), height: 1 }, compact]
+  const tableSizes = [{ width: wholeOf(TABLE_LABELS), height: TABLE_LABELS.length }, compact]
+  const sizesOf: SizesOf = kind => (kind === 'code' ? codeSizes : tableSizes)
   const noticeAt: NoticeAt =
     options.copiedNotice === 'toast' || options.copiedNotice === 'above-prompt' ? options.copiedNotice : 'above-button'
   // The reply's first press copies this format; a press while it reads ✓
-  // copies the other. A table's first press copies it for a spreadsheet.
+  // copies the other. A table's presses take its markdown, then rows for a
+  // spreadsheet, then it as rendered, in turn.
   const replyFormats: Format[] = options.replyFormat === 'rendered' ? ['rendered', 'markdown'] : ['markdown', 'rendered']
   // How a hovered code block is marked: its rows redrawn on a grey card, or a
   // bar in the reply's left margin; or `off`, for a terminal that reports no
@@ -296,8 +315,9 @@ export const register: Register = (on, options) => {
           return {
             ...base,
             key: `copy-table:${n}`,
-            text: part.tsv,
+            text: part.markdown,
             formats: [
+              { format: 'markdown', text: () => part.markdown },
               { format: 'spreadsheet', text: () => part.tsv },
               { format: 'rendered', text: () => part.rendered },
             ],
@@ -307,11 +327,11 @@ export const register: Register = (on, options) => {
         return { ...base, key: `copy-code:${n}`, text: part.code, isFile: part.file !== undefined, size: linesOf }
       }),
     ]
-    // Each code block gets a button of its own, shown while the pointer is
-    // over it, and is left off the closing line's row; but only while the
-    // reply's laid-out height is the engine's (its rows and the blank one
-    // above them) and its code blocks are the layout's one for one, so no
-    // button lands on a wrong row. Else every block stays on the row.
+    // Each code block and table gets buttons of its own, shown while the
+    // pointer is over it, and is left off the closing line's row; but only
+    // while the reply's laid-out height is the engine's (its rows and the
+    // blank one above them) and its parts are the layout's one for one, so
+    // no button lands on a wrong row. Else every part stays on the row.
     const columns = e.viewport?.columns ?? Infinity
     let blocks: Block[] = []
     let height = 0
@@ -321,13 +341,30 @@ export const register: Register = (on, options) => {
       const at = `${e.requestId}:${columns}`
       const of = e.props.onScreen?.of
       if (of !== undefined) agreed.set(at, of === height)
-      const codes = parts.flatMap(part => (part.kind === 'code' ? [part.code] : []))
-      if (agreed.get(at) === true && layout.codeStarts.length === codes.length) {
-        blocks = placeBlocks(layout, codes, columns, sizes)
+      const isSame = layout.parts.map(span => span.kind).join() === parts.map(part => part.kind).join()
+      if (agreed.get(at) === true && isSame) {
+        const isEmpty = parts.map(part => part.kind === 'code' && part.code === '')
+        blocks = placeBlocks(layout, isEmpty, columns, sizesOf)
       }
     }
-    const blockKey = (block: Block) => `copy-code:${block.index}`
-    const onRow = all.filter(action => !blocks.some(block => blockKey(block) === action.key))
+    // A part's number among those of its kind, as the actions' keys count.
+    const nthOf = (index: number) => parts.slice(0, index).filter(other => other.kind === parts[index]?.kind).length
+    const rowKeyOf = (block: Block) => `copy-${block.kind}:${nthOf(block.index)}`
+    const onRow = all.filter(action => !blocks.some(block => rowKeyOf(block) === action.key))
+    // A table's own buttons copy it one way each: as Claude wrote it, as rows
+    // for a spreadsheet, or with its borders.
+    const tableActions = parts.flatMap((part, i): Action[] => {
+      if (part.kind !== 'table') return []
+      const as = (label: string, text: string, size: (copied: string) => string): Action => ({
+        key: tableKey(label, nthOf(i)),
+        label,
+        text,
+        isReply: false,
+        size,
+      })
+      const rowCount = () => count(part.rows, 'row')
+      return [as('markdown', part.markdown, rowCount), as('sheet', part.tsv, rowCount), as('boxed', part.rendered, linesOf)]
+    })
 
     // Whole labels beside the closing line's own text if they fit; else on the
     // blank row above it, which has the reply's indent of room to spare, whole,
@@ -335,7 +372,7 @@ export const register: Register = (on, options) => {
     const { isAbove, items } = layoutRow(onRow, columns - ROW_RIGHT - CLOSING_LINE, columns - ROW_RIGHT - 2, page)
     const turnPage = (by: number) =>
       update($, pages, old => ({ ...old, [e.requestId]: Math.max(0, (old[e.requestId] ?? 0) + by) }))
-    rows.set(e.requestId, { actions: new Map(all.map(action => [action.key, action])), turnPage })
+    rows.set(e.requestId, { actions: new Map([...all, ...tableActions].map(action => [action.key, action])), turnPage })
 
     // Columns from the row's right end to each item's: the widths of the
     // items after it and the gaps between them.
@@ -376,23 +413,21 @@ export const register: Register = (on, options) => {
     // under the mark, seen once the pointer leaves. A Box placed past the
     // rows the viewport shows is held at its edge, over other rows, so a block
     // is drawn only as far as it shows, its button on its first row there.
-    const scopeOf = (block: Block) => `${e.requestId}:${blockKey(block)}`
+    const scopeOf = (block: Block) => `${e.requestId}:part-${block.index}`
     const shown = blocks.flatMap(block => {
       const part = onScreenPart(block, e.props.onScreen)
       return part === undefined ? [] : [{ block, ...part }]
     })
     const scopes = shown.map(({ block, from, lines }) => (
-      <Box key={`scope-${blockKey(block)}`} position="absolute" top={from} left={0} width={block.right} height={lines.length} hover={{ scope: scopeOf(block) }} />
+      <Box key={`scope-${block.index}`} position="absolute" top={from} left={0} width={block.right} height={lines.length} hover={{ scope: scopeOf(block) }} />
     ))
     const marks = shown.flatMap(({ block, from, lines }) => {
-      const key = blockKey(block)
+      const key = `part-${block.index}`
       const reveal = { display: 'none', hover: { scope: scopeOf(block), display: 'flex' } } as const
-      const { at, isCompact, isOver } = placeOn(block, from - block.top, columns, sizes)
-      const isDone = done?.id === `${e.requestId}:${key}`
-      const labelled = isCompact ? compactOf(isDone ? '✓' : icon) : isDone ? `✓ ${BLOCK_DONE}` : `${icon} ${BLOCK_LABEL}`
-      const buttonText = isOver ? ` ${labelled}` : labelled
-      const width = widthOf(buttonText)
-      const item: RowItem = { key, text: buttonText, from: 0, to: width, tone: isDone ? 'done' : 'idle' }
+      const { at, size, isOver } = placeOn(block, from - block.top, columns, sizesOf)
+      // Each button on a row of its own, as many as the rows on screen hold;
+      // a space before one that covers a row's end.
+      const buttons = buttonsOf(block.kind, size, nthOf(block.index)).slice(0, lines.length)
       const onCard = blockHover === 'highlight' ? { background: 'subtle' } : {}
       const mark =
         blockHover === 'highlight' ? (
@@ -404,18 +439,31 @@ export const register: Register = (on, options) => {
             {lines.map((_, i) => <Text key={String(i)} color="suggestion">▎</Text>)}
           </Box>
         )
+      const drawnButtons = buttons.map(({ key: action, label }, i) => {
+        const isDone = done?.id === `${e.requestId}:${action}`
+        const read = label === undefined ? compactOf(isDone ? '✓' : icon) : isDone ? `✓ ${BLOCK_DONE}` : `${icon} ${label}`
+        const text = isOver ? ` ${read}` : read
+        const width = widthOf(text)
+        const item: RowItem = { key: action, text, from: 0, to: width, tone: isDone ? 'done' : 'idle' }
+        const name = i === 0 ? key : `${key}:${i}`
+        return { name, top: from - height + i, item, width, isDone }
+      })
       return [
-        ...(isDone
-          ? [
-              <Box key={`copied-${key}`} position="absolute" top={from - height} left={at}>
-                <Client key={`${key}:copied`} module="./row.ts" props={{ items: [item], gap: GAP }} width={width} height={1} />
-              </Box>,
-            ]
-          : []),
+        ...drawnButtons.flatMap(({ name, top, item, width, isDone }) =>
+          isDone
+            ? [
+                <Box key={`copied-${name}`} position="absolute" top={top} left={at}>
+                  <Client key={`${name}:copied`} module="./row.ts" props={{ items: [item], gap: GAP }} width={width} height={1} />
+                </Box>,
+              ]
+            : [],
+        ),
         mark,
-        <Box key={`button-${key}`} position="absolute" top={from - height} left={at} {...reveal}>
-          <Client key={key} module="./row.ts" props={{ items: [item], gap: GAP, look: 'accent', ...onCard }} width={width} height={1} />
-        </Box>,
+        ...drawnButtons.map(({ name, top, item, width }) => (
+          <Box key={`button-${name}`} position="absolute" top={top} left={at} {...reveal}>
+            <Client key={name} module="./row.ts" props={{ items: [item], gap: GAP, look: 'accent', ...onCard }} width={width} height={1} />
+          </Box>
+        )),
       ]
     })
 

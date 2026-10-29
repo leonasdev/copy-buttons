@@ -1,57 +1,64 @@
 import { GAP } from './fit'
 import { widthOf } from './width'
-import type { Layout } from './wrap'
+import type { Layout, Span } from './wrap'
 
-// The columns a code block's button takes: whole (`⧉ copy`, with room for
-// `✓ copied`), or as its icon alone with a space after it.
-export type ButtonSizes = { whole: number; compact: number }
+// The ways a part's buttons can be shown, widest first, each by the columns
+// and rows it takes (a code block: `⧉ copy`, then its icon alone; a table:
+// its three buttons one under another, then one as its icon alone). The last
+// is the narrowest, one row high, which also covers a row's end.
+export type Size = { width: number; height: number }
+export type SizesOf = (kind: Span['kind']) => readonly Size[]
 
-// A code block that gets a button of its own: which of the reply's code
-// blocks it is, the row it starts on (the reply's row k is drawn at k + 1,
-// below the blank row), its rows as drawn, and the column its card ends at,
-// from the reply's left edge; `isCompact` where the button is its icon
-// alone, and `pastWidest`, where the button sits past the block's widest
-// row, the column it starts at on whichever row it is drawn. Else it sits at
-// the screen's right.
-export type Block = { index: number; top: number; rows: string[]; right: number; isCompact: boolean; pastWidest?: number }
+// A code block or table that gets buttons of its own: which of the reply's
+// parts it is, the row it starts on (the reply's row k is drawn at k + 1,
+// below the blank row), its rows as drawn, the column its card ends at, from
+// the reply's left edge, and `size`, which of its kind's sizes it shows;
+// `pastWidest`, where its buttons sit past its widest row, the column they
+// start at on whichever row they are drawn. Else they sit at the screen's
+// right.
+export type Block = { index: number; kind: Span['kind']; top: number; rows: string[]; right: number; size: number; pastWidest?: number }
 
 // Columns a row of the reply takes, its two of indent counted and the space
 // a wrap leaves at its end not.
 const used = (row: string) => 2 + widthOf(row.trimEnd())
 
-// Whether a button `width` wide fits at the screen's right of a row, a gap
-// after the row's text and a column after the button.
-const fitsAtRight = (row: string, width: number, columns: number) => used(row) + GAP <= columns - 1 - width
+// Whether buttons fit at the screen's right of the rows from `row` they take,
+// a gap after each row's text and a column after them.
+const fitsAtRight = (rows: readonly string[], row: number, size: Size, columns: number) =>
+  rows.slice(row, row + size.height).every(text => used(text) + GAP <= columns - 1 - size.width)
 
-// Each code block's button on its first row: past its widest row, where the
-// screen has room for it and a column after; else, its card as wide as the
-// screen, at the screen's right, where the row leaves room; then the same as
-// its icon alone; failing those, as its icon over the row's end (`placeOn`).
-// An empty block has nothing to copy: it gets no button.
-export function placeBlocks(layout: Layout, codes: readonly string[], columns: number, sizes: ButtonSizes): Block[] {
-  return layout.codeStarts.flatMap((start, index): Block[] => {
-    const code = codes[index]
-    if (code === undefined || code === '') return []
-    const rows = layout.rows.slice(start, (layout.codeEnds[index] ?? start) + 1)
-    const block = { index, top: start + 1, rows }
+// Each part's buttons on its first row, in its kind's sizes from the widest:
+// past its widest row, where the screen has room for them and a column
+// after; else, its card as wide as the screen, at the screen's right, where
+// the row leaves room. Failing every size, the narrowest over the row's end
+// (`placeOn`). A part `isEmpty` says has nothing to copy gets none.
+export function placeBlocks(layout: Layout, isEmpty: readonly boolean[], columns: number, sizesOf: SizesOf): Block[] {
+  return layout.parts.flatMap(({ kind, start, end }, index): Block[] => {
+    if (isEmpty[index] === true) return []
+    const rows = layout.rows.slice(start, end + 1)
+    const block = { index, kind, top: start + 1, rows }
     const pastWidest = Math.max(...rows.map(used)) + GAP
-    for (const [isCompact, width] of [[false, sizes.whole], [true, sizes.compact]] as const) {
-      if (pastWidest + width + 1 <= columns) return [{ ...block, right: pastWidest + width + 1, isCompact, pastWidest }]
-      if (fitsAtRight(rows[0] ?? '', width, columns)) return [{ ...block, right: columns, isCompact }]
+    const sizes = sizesOf(kind)
+    for (const [size, each] of sizes.entries()) {
+      if (pastWidest + each.width + 1 <= columns) return [{ ...block, right: pastWidest + each.width + 1, size, pastWidest }]
+      if (fitsAtRight(rows, 0, each, columns)) return [{ ...block, right: columns, size }]
     }
-    return [{ ...block, right: columns, isCompact: true }]
+    return [{ ...block, right: columns, size: sizes.length - 1 }]
   })
 }
 
-// Where a block's button goes on one of its rows (the first on screen):
-// past its widest, where it was placed so; else at the screen's right, where
-// the row leaves room; else as its icon alone over the row's end, a space
-// before it (`isOver`), the two taking the screen's last columns.
-export function placeOn(block: Block, row: number, columns: number, sizes: ButtonSizes) {
-  if (block.pastWidest !== undefined) return { at: block.pastWidest, isCompact: block.isCompact, isOver: false }
-  const width = block.isCompact ? sizes.compact : sizes.whole
-  if (fitsAtRight(block.rows[row] ?? '', width, columns)) return { at: columns - 1 - width, isCompact: block.isCompact, isOver: false }
-  return { at: columns - 1 - sizes.compact, isCompact: true, isOver: true }
+// Where a part's buttons go on one of its rows (the first on screen), and in
+// which size: past its widest, where they were placed so; else at the
+// screen's right, where the row leaves room; else in the narrowest size over
+// the row's end, a space before it (`isOver`), the two taking the screen's
+// last columns.
+export function placeOn(block: Block, row: number, columns: number, sizesOf: SizesOf) {
+  if (block.pastWidest !== undefined) return { at: block.pastWidest, size: block.size, isOver: false }
+  const sizes = sizesOf(block.kind)
+  const size = sizes[block.size] ?? { width: 0, height: 1 }
+  if (fitsAtRight(block.rows, row, size, columns)) return { at: columns - 1 - size.width, size: block.size, isOver: false }
+  const narrowest = sizes.length - 1
+  return { at: columns - 1 - (sizes[narrowest]?.width ?? 0), size: narrowest, isOver: true }
 }
 
 // The part of a block on screen: its first row there (`from`, as `top`

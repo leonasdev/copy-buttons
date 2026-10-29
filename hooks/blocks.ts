@@ -6,9 +6,11 @@ import { lex, renderTable, tsvOf } from './render'
 export type CodeBlock = { code: string; language: string; file?: string }
 
 // What a reply offers to copy besides itself, in reading order: its code
-// blocks, and its tables both as a spreadsheet pastes them and as the
-// terminal draws them (`rows` with the header).
-export type Copyable = ({ kind: 'code' } & CodeBlock) | { kind: 'table'; tsv: string; rendered: string; rows: number }
+// blocks, and its tables as Claude wrote them, as a spreadsheet pastes them
+// and as the terminal draws them (`rows` with the header).
+export type Copyable =
+  | ({ kind: 'code' } & CodeBlock)
+  | { kind: 'table'; markdown: string; tsv: string; rendered: string; rows: number }
 
 const FILE_KEYS = new Set(['title', 'file', 'filename', 'name', 'path'])
 
@@ -41,7 +43,8 @@ export function copyables(markdown: string): Copyable[] {
       }
       if (token.type === 'table') {
         const table = token as Tokens.Table
-        found.push({ kind: 'table', tsv: tsvOf(table), rendered: renderTable(table), rows: table.rows.length + 1 })
+        const markdown = table.raw.trimEnd()
+        found.push({ kind: 'table', markdown, tsv: tsvOf(table), rendered: renderTable(table), rows: table.rows.length + 1 })
         continue
       }
       if (token.type === 'list') {

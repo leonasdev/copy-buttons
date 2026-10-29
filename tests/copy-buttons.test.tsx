@@ -165,7 +165,7 @@ test('code blocks and tables come in reading order, tables in a list or quote to
   expect(copyables(markdown).map(part => part.kind)).toEqual(['table', 'code', 'table'])
 })
 
-test('a table copies for a spreadsheet, then rendered on a press while it reads ✓', async ($, on) => {
+test('a table copies its markdown, then for a spreadsheet, then rendered, a press while it reads ✓ taking the next', async ($, on) => {
   engine(on)
   const copied: string[] = []
   on('ui.copy', (_, e) => {
@@ -176,19 +176,23 @@ test('a table copies for a spreadsheet, then rendered on a press while it reads 
   const ui = await $.ui.mount({ ...MESSAGE, props: { text, isFirstOfReply: true } })
   expect(await labels(ui)).toEqual(['⧉ Reply', '⧉ table 1', '⧉ sh', '⧉ table 2'])
   await click(ui, 'copy-table:0')
-  expect(copied).toEqual(['a\tb\n1\t2\n3\t4'])
-  expect(await ui.find({ type: 'Text', text: 'copied as spreadsheet' })).toBeDefined()
+  expect(copied).toEqual(['| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |'])
+  expect(await ui.find({ type: 'Text', text: 'copied as markdown' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: ' · click again for spreadsheet' })).toBeDefined()
+
+  await click(ui, 'copy-table:0')
+  expect(copied[1]).toBe('a\tb\n1\t2\n3\t4')
   expect(await ui.find({ type: 'Text', text: ' · click again for rendered' })).toBeDefined()
 
   await click(ui, 'copy-table:0')
-  expect(copied[1]).toBe(
+  expect(copied[2]).toBe(
     ['┌─────┬─────┐', '│  a  │  b  │', '├─────┼─────┤', '│ 1   │ 2   │', '├─────┼─────┤', '│ 3   │ 4   │', '└─────┴─────┘'].join('\n'),
   )
   expect(await ui.find({ type: 'Text', text: 'copied as rendered' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: ' · click again for spreadsheet' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: ' · click again for markdown' })).toBeDefined()
 
   await click(ui, 'copy-code:0')
-  expect(copied[2]).toBe('ls')
+  expect(copied[3]).toBe('ls')
   expect(await ui.find({ type: 'Text', text: 'copied 1 line' })).toBeDefined()
   await ui.unmount()
 })
@@ -654,35 +658,41 @@ test('a reply lays out as the terminal draws it: list rows under their text, cod
     'cat ~/.local/state/tmux-agents/main.json',
     '   裡面應該有 "window": "api"。',
   ])
-  expect(layout.codeStarts).toEqual([7])
-  expect(layout.codeEnds).toEqual([7])
+  expect(layout.parts).toEqual([{ kind: 'code', start: 7, end: 7 }])
 })
 
 test('a code block in a quote counts, and a block ends where the next one starts', () => {
   const markdown = ['> ```sh', '> echo quoted', '> ```', '', '    indented code block', '', '```diff', '- old', '+ new', '```'].join('\n')
   const layout = layOut(markdown, 80)
   expect(layout.rows).toEqual(['▎ echo quoted', '', 'indented code block', '- old', '+ new'])
-  expect(layout.codeStarts).toEqual([0, 2, 3])
-  expect(layout.codeEnds).toEqual([0, 2, 4])
+  expect(layout.parts).toEqual([
+    { kind: 'code', start: 0, end: 0 },
+    { kind: 'code', start: 2, end: 2 },
+    { kind: 'code', start: 3, end: 4 },
+  ])
 })
 
-const SIZES = { whole: 8, compact: 2 }
+// A code block's button whole or as its icon; a table's three, one under
+// another, or one as its icon.
+const ICON = { width: 2, height: 1 }
+const SIZES_OF = (kind: 'code' | 'table') => (kind === 'code' ? [{ width: 8, height: 1 }, ICON] : [{ width: 10, height: 3 }, ICON])
+const codeParts = (...spans: [number, number][]) => spans.map(([start, end]) => ({ kind: 'code' as const, start, end }))
 
 test('a block button sits past the widest row, else at the right, else as its icon', () => {
-  const layout = { rows: ['short', 'a much longer row of code', 'x'.repeat(40)], codeStarts: [0, 2], codeEnds: [1, 2] }
-  const codes = ['short\na much longer row of code', 'x'.repeat(40)]
+  const layout = { rows: ['short', 'a much longer row of code', 'x'.repeat(40)], parts: codeParts([0, 1], [2, 2]) }
+  const full = [false, false]
   // Wide: each past its own widest row, its card ending a column after it.
-  expect(placeBlocks(layout, codes, 80, SIZES)).toEqual([
-    { index: 0, top: 1, rows: ['short', 'a much longer row of code'], right: 38, isCompact: false, pastWidest: 29 },
-    { index: 1, top: 3, rows: ['x'.repeat(40)], right: 53, isCompact: false, pastWidest: 44 },
+  expect(placeBlocks(layout, full, 80, SIZES_OF)).toEqual([
+    { index: 0, kind: 'code', top: 1, rows: ['short', 'a much longer row of code'], right: 38, size: 0, pastWidest: 29 },
+    { index: 1, kind: 'code', top: 3, rows: ['x'.repeat(40)], right: 53, size: 0, pastWidest: 44 },
   ])
   // Narrower: the long block's icon alone past it; narrower still, over its end.
-  expect(placeBlocks(layout, codes, 50, SIZES)[1]).toMatchObject({ right: 47, isCompact: true, pastWidest: 44 })
-  const covering = placeBlocks(layout, codes, 45, SIZES)[1]
-  expect(covering).toMatchObject({ right: 45, isCompact: true })
-  expect(placeOn(covering!, 0, 45, SIZES)).toEqual({ at: 42, isCompact: true, isOver: true })
+  expect(placeBlocks(layout, full, 50, SIZES_OF)[1]).toMatchObject({ right: 47, size: 1, pastWidest: 44 })
+  const covering = placeBlocks(layout, full, 45, SIZES_OF)[1]
+  expect(covering).toMatchObject({ right: 45, size: 1 })
+  expect(placeOn(covering!, 0, 45, SIZES_OF)).toEqual({ at: 42, size: 1, isOver: true })
   // An empty block gets none.
-  expect(placeBlocks(layout, ['', ''], 80, SIZES)).toEqual([])
+  expect(placeBlocks(layout, [true, true], 80, SIZES_OF)).toEqual([])
 })
 
 // Each as the terminal drew it.
@@ -690,7 +700,7 @@ test('a tab in code runs to the next multiple of eight from where the code start
   const code = 'func worker() {\n\tfor j := range jobs {\n\t\tresults <- j\n\t}\n}'
   const layout = layOut(['```go', code, '```'].join('\n'), 80)
   expect(layout.rows).toEqual(['func worker() {', '        for j := range jobs {', '                results <- j', '        }', '}'])
-  expect(placeBlocks(layout, [code], 80, SIZES)).toHaveLength(1)
+  expect(placeBlocks(layout, [false], 80, SIZES_OF)).toHaveLength(1)
 
   const rows = (markdown: string) => layOut(markdown, 80).rows.map(row => row.trimEnd())
   expect(rows('```\nname\tage\nabcdefgh\t22\nab\tc\td\n```')).toEqual(['name    age', 'abcdefgh        22', 'ab      c       d'])
@@ -700,17 +710,17 @@ test('a tab in code runs to the next multiple of eight from where the code start
 })
 
 test('a block as wide as the screen has its button at the right of the row it is drawn on', () => {
-  const layout = { rows: ['ab', 'y'.repeat(37)], codeStarts: [0], codeEnds: [1] }
-  const [block] = placeBlocks(layout, ['ab\n' + 'y'.repeat(37)], 40, SIZES)
-  expect(block).toMatchObject({ right: 40, isCompact: false })
+  const layout = { rows: ['ab', 'y'.repeat(37)], parts: codeParts([0, 1]) }
+  const [block] = placeBlocks(layout, [false], 40, SIZES_OF)
+  expect(block).toMatchObject({ right: 40, size: 0 })
   expect(block?.pastWidest).toBeUndefined()
   // Whole where the row leaves room; over the end of a row that leaves none.
-  expect(placeOn(block!, 0, 40, SIZES)).toEqual({ at: 31, isCompact: false, isOver: false })
-  expect(placeOn(block!, 1, 40, SIZES)).toEqual({ at: 37, isCompact: true, isOver: true })
+  expect(placeOn(block!, 0, 40, SIZES_OF)).toEqual({ at: 31, size: 0, isOver: false })
+  expect(placeOn(block!, 1, 40, SIZES_OF)).toEqual({ at: 37, size: 1, isOver: true })
 })
 
 test('a block is drawn only as far as it shows on screen', () => {
-  const block = { index: 0, top: 5, rows: ['a', 'b', 'c', 'd'], right: 10, isCompact: false }
+  const block = { index: 0, kind: 'code' as const, top: 5, rows: ['a', 'b', 'c', 'd'], right: 10, size: 0 }
   expect(onScreenPart(block, { first: 0, last: 100 })).toEqual({ from: 5, lines: ['a', 'b', 'c', 'd'] })
   expect(onScreenPart(block, { first: 7, last: 100 })).toEqual({ from: 7, lines: ['c', 'd'] })
   expect(onScreenPart(block, { first: 0, last: 6 })).toEqual({ from: 5, lines: ['a', 'b'] })
@@ -736,13 +746,13 @@ test('each code block gets its own button once the engine agrees on the reply\'s
   })
   const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
   expect(await rowLabels(ui)).toEqual(['⧉ Reply'])
-  expect(await blockButton(ui, 'copy-code:1')).toBe('⧉ copy')
+  expect(await blockButton(ui, 'part-1')).toBe('⧉ copy')
 
-  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'copy-code:1' })
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
   expect(copied).toEqual(['pwd'])
-  expect(await blockButton(ui, 'copy-code:1')).toBe('✓ copied')
+  expect(await blockButton(ui, 'part-1')).toBe('✓ copied')
   // A plain ✓ under the mark, seen once the pointer leaves the block.
-  expect(await blockButton(ui, 'copy-code:1:copied')).toBe('✓ copied')
+  expect(await blockButton(ui, 'part-1:copied')).toBe('✓ copied')
   await ui.unmount()
 })
 
@@ -750,7 +760,7 @@ test('a reply whose height the engine does not agree on keeps its blocks on the 
   engine(on)
   const ui = await $.ui.mount({ ...HOVERED, props: onScreen(12) })
   expect(await rowLabels(ui)).toEqual(['⧉ Reply', '⧉ bash 1', '⧉ bash 2', '⧉ ts'])
-  expect(await ui.find({ type: 'Client', key: 'copy-code:0' })).toBeUndefined()
+  expect(await ui.find({ type: 'Client', key: 'part-0' })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -774,6 +784,52 @@ test('with the hover off every block keeps its button on the row', { options: { 
   engine(on)
   const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
   expect(await rowLabels(ui)).toEqual(['⧉ Reply', '⧉ bash 1', '⧉ bash 2', '⧉ ts'])
-  expect(await ui.find({ type: 'Client', key: 'copy-code:0' })).toBeUndefined()
+  expect(await ui.find({ type: 'Client', key: 'part-0' })).toBeUndefined()
+  await ui.unmount()
+})
+
+const TABLE_ANSWER = ['Results:', '', '| name | n |', '| --- | --: |', '| a | 1 |', '', '```sh', 'ls', '```'].join('\n')
+
+test('tables and code blocks are laid out in reading order, each by its rows', () => {
+  const layout = layOut(TABLE_ANSWER, 61)
+  expect(layout.rows).toEqual(['Results:', '', '┌──────┬─────┐', '│ name │  n  │', '├──────┼─────┤', '│ a    │   1 │', '└──────┴─────┘', '', 'ls'])
+  expect(layout.parts).toEqual([
+    { kind: 'table', start: 2, end: 6 },
+    { kind: 'code', start: 8, end: 8 },
+  ])
+})
+
+test('a table shows its three buttons where they fit, else one as its icon', () => {
+  const layout = { rows: Array(5).fill('x'.repeat(30)), parts: [{ kind: 'table' as const, start: 0, end: 4 }] }
+  expect(placeBlocks(layout, [false], 80, SIZES_OF)[0]).toMatchObject({ size: 0, pastWidest: 34, right: 45 })
+  expect(placeBlocks(layout, [false], 44, SIZES_OF)[0]).toMatchObject({ size: 1, pastWidest: 34, right: 37 })
+  // At the screen's right the three need room on each of the rows they take.
+  const block = { index: 0, kind: 'table' as const, top: 1, rows: ['ab', 'ab', 'ab', 'x'.repeat(30)], right: 44, size: 0 }
+  expect(placeOn(block, 0, 44, SIZES_OF)).toEqual({ at: 33, size: 0, isOver: false })
+  expect(placeOn(block, 1, 44, SIZES_OF)).toEqual({ at: 41, size: 1, isOver: true })
+})
+
+test('a table\'s own buttons, one under another, copy it as markdown, for a spreadsheet and boxed', async ($, on) => {
+  engine(on)
+  const copied: string[] = []
+  on('ui.copy', (_, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
+  const props = { text: TABLE_ANSWER, isFirstOfReply: true }
+  const height = layOut(TABLE_ANSWER, 61).rows.length + 1
+  const ui = await $.ui.mount({ ...HOVERED, props: { ...props, onScreen: { first: 0, last: height - 1, of: height } } })
+  expect(await rowLabels(ui)).toEqual(['⧉ Reply'])
+  const names = ['part-0', 'part-0:1', 'part-0:2']
+  expect(await Promise.all(names.map(name => blockButton(ui, name)))).toEqual(['⧉ markdown', '⧉ sheet', '⧉ boxed'])
+
+  for (const name of names) await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: name })
+  expect(copied).toEqual([
+    '| name | n |\n| --- | --: |\n| a | 1 |',
+    'name\tn\na\t1',
+    '┌──────┬─────┐\n│ name │  n  │\n├──────┼─────┤\n│ a    │   1 │\n└──────┴─────┘',
+  ])
+  expect(await blockButton(ui, 'part-0:2')).toBe('✓ copied')
+  expect(await blockButton(ui, 'part-0')).toBe('⧉ markdown')
   await ui.unmount()
 })
