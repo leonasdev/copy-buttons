@@ -1,0 +1,63 @@
+# Testing on a real screen
+
+`claude plugin test .` checks the trees the hooks draw, not the screen. To see
+where things land, drive a real Claude Code in a tmux server of its own and read
+the screen back.
+
+## Start a session on a fixed reply
+
+Resume a session whose reply holds what you want to look at; nothing is sent to
+the model. Disable the installed plugin and load this folder, options passed
+for this session only:
+
+```sh
+tmux -L spike new-session -d -s s -x 120 -y 300 -c ~/.claude/mods/copy-buttons \
+  "claude --resume <session-id> --plugin-dir ~/.claude/mods/copy-buttons \
+   --settings '{\"enabledPlugins\":{\"copy-buttons@copy-buttons\":false},\
+\"pluginConfigs\":{\"copy-buttons@inline\":{\"options\":{\"icon\":\"standard\",\"blockHover\":\"highlight\"}}}}'"
+tmux -L spike set -g set-clipboard on   # copies land in tmux's buffer
+```
+
+To get a reply with given content, ask a fresh session (one short turn):
+`Read <file> with the Read tool, then reply with exactly its contents as your
+answer, verbatim, with nothing before or after.` Check the transcript
+(`~/.claude/projects/<cwd>/<id>.jsonl`) that the answer is verbatim (tabs kept).
+`dev/check-rendering.ts` does this for `dev/samples/`.
+
+`/reload-plugins` in that session picks up changed hooks.
+
+## Drive the pointer
+
+Send SGR mouse reports as typed input; columns and rows are 1-based:
+
+```sh
+E=$(printf '\033'); m() { tmux -L spike send-keys -t s -l "${E}[<$1;$2;$3$4"; }
+m 35 10 20 M          # move (hover) to column 10, row 20
+m 0 10 20 M; m 0 10 20 m   # left press, release
+m 32 40 22 M          # drag (move with the button held)
+m 64 50 10 M          # wheel up; 65 wheel down
+```
+
+Send wheel reports slowly when looking for a row: a burst scrolls past it.
+`C-End` jumps to the bottom.
+
+## Read the screen
+
+```sh
+tmux -L spike capture-pane -p -t s      # text
+tmux -L spike capture-pane -p -e -t s   # with colours (e.g. the card's 48;2;80;80;80)
+tmux -L spike show-buffer               # what the last copy put on the clipboard
+```
+
+Compare a block's rows hovered and not: the card's text must match the reply's
+exactly, or a drag while hovered copies the difference.
+
+## Things to check after a change
+
+- Hover a code block and a table: card or bar, buttons at the top right.
+- Click each button; `show-buffer` holds the right text; `✓ copied` shows,
+  and stays its moment after the pointer leaves.
+- A narrow window (30–50 columns): wrapped blocks, the icon alone, covering.
+- A block scrolled half off the top and the bottom: the mark only on its rows
+  on screen, the button on its first one.
+- A reply holding a table wider than the window: everything on the closing line.
