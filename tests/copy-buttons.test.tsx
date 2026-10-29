@@ -681,18 +681,22 @@ test('a block button sits past the widest row, else at the right, else as its ic
   const covering = placeBlocks(layout, codes, 45, SIZES)[1]
   expect(covering).toMatchObject({ right: 45, isCompact: true })
   expect(placeOn(covering!, 0, 45, SIZES)).toEqual({ at: 42, isCompact: true, isOver: true })
-  // An empty block, or one holding a tab, gets none.
-  expect(placeBlocks(layout, ['', 'a\tb'], 80, SIZES)).toEqual([])
+  // An empty block gets none.
+  expect(placeBlocks(layout, ['', ''], 80, SIZES)).toEqual([])
 })
 
-test('a tab indenting a code line takes eight columns, and that block gets a button', () => {
+// Each as the terminal drew it.
+test('a tab in code runs to the next multiple of eight from where the code starts', () => {
   const code = 'func worker() {\n\tfor j := range jobs {\n\t\tresults <- j\n\t}\n}'
   const layout = layOut(['```go', code, '```'].join('\n'), 80)
-  // As the terminal drew a Go block indented with tabs.
   expect(layout.rows).toEqual(['func worker() {', '        for j := range jobs {', '                results <- j', '        }', '}'])
   expect(placeBlocks(layout, [code], 80, SIZES)).toHaveLength(1)
-  // A tab past the indent is not followed: that block gets none.
-  expect(placeBlocks(layout, ['\tname\tage'], 80, SIZES)).toEqual([])
+
+  const rows = (markdown: string) => layOut(markdown, 80).rows.map(row => row.trimEnd())
+  expect(rows('```\nname\tage\nabcdefgh\t22\nab\tc\td\n```')).toEqual(['name    age', 'abcdefgh        22', 'ab      c       d'])
+  // Past a quote's bar, and a wide character two columns.
+  expect(rows('> ```\n> ab\tc\n> abcdefghij\td\n> ```')).toEqual(['▎ ab      c', '▎ abcdefghij      d'])
+  expect(rows('```\n中文\tx\n中文字\ty\n```')).toEqual(['中文    x', '中文字  y'])
 })
 
 test('a block as wide as the screen has its button at the right of the row it is drawn on', () => {

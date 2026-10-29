@@ -27,13 +27,11 @@ const fitsAtRight = (row: string, width: number, columns: number) => used(row) +
 // screen has room for it and a column after; else, its card as wide as the
 // screen, at the screen's right, where the row leaves room; then the same as
 // its icon alone; failing those, as its icon over the row's end (`placeOn`).
-// An empty block has nothing to copy; a tab past a line's indent is drawn in
-// a way not yet followed, so a block holding one is not redrawn: neither
-// gets a button.
+// An empty block has nothing to copy: it gets no button.
 export function placeBlocks(layout: Layout, codes: readonly string[], columns: number, sizes: ButtonSizes): Block[] {
   return layout.codeStarts.flatMap((start, index): Block[] => {
     const code = codes[index]
-    if (code === undefined || code === '' || code.split('\n').some(line => line.replace(/^\t+/, '').includes('\t'))) return []
+    if (code === undefined || code === '') return []
     const rows = layout.rows.slice(start, (layout.codeEnds[index] ?? start) + 1)
     const block = { index, top: start + 1, rows }
     const pastWidest = Math.max(...rows.map(used)) + GAP

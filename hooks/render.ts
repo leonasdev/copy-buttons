@@ -10,8 +10,9 @@ import { widthOf } from './width'
 // A rendered line; `isFlush` keeps it at the left edge inside a list, where
 // the terminal draws code blocks and quotes unindented. `hang` is where its
 // wrapped rows start (past a list item's marker); `isCode` marks a code
-// block's line, `isCodeStart` its first.
-export type Line = { text: string; isFlush?: true; hang?: number; isCode?: true; isCodeStart?: true }
+// block's line, `isCodeStart` its first, and `codeAt` is where its code
+// starts (past a quote's `▎ `).
+export type Line = { text: string; isFlush?: true; hang?: number; isCode?: true; isCodeStart?: true; codeAt?: number }
 
 // Inline marks are dropped (`**`, `*`, backticks), entities left as written
 // (`&amp;`); a link reads `text (url)`, `text (url) ("title")` with a title,
@@ -134,6 +135,7 @@ function block(token: Token, depth: number): Line[] {
         ...line,
         text: line.text === '' ? '▎' : `▎ ${line.text}`,
         isFlush: true as const,
+        ...(line.isCode === true ? { codeAt: (line.codeAt ?? 0) + 2 } : {}),
       }))
     case 'list':
       return list(token as Tokens.List, depth)

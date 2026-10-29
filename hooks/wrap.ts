@@ -44,10 +44,20 @@ export function wrap(text: string, columns: number): string[] {
   return rows.map((row, i) => (i === 0 ? row : row.trimStart()))
 }
 
-// A tab that indents a code line is drawn as eight columns, wherever the
-// line starts.
-const TAB = ' '.repeat(8)
-const untab = (text: string) => text.replace(/^\t+/, tabs => TAB.repeat(tabs.length))
+// A tab in a code line runs to the next multiple of eight columns, counted
+// from where the code starts (past a quote's `▎ `), a wide character two.
+const TAB_STOP = 8
+
+function untab(text: string, from: number): string {
+  let out = text.slice(0, from)
+  let column = 0
+  for (const grapheme of graphemes(text.slice(from))) {
+    const width = grapheme === '\t' ? TAB_STOP - (column % TAB_STOP) : widthOf(grapheme)
+    out += grapheme === '\t' ? ' '.repeat(width) : grapheme
+    column += width
+  }
+  return out
+}
 
 // The reply's rows on a screen `columns` wide, past its bullet's two columns,
 // and the first and last row of each code block. A table wider than the
@@ -60,7 +70,7 @@ export function layOut(markdown: string, columns: number): Layout {
   const layout: Layout = { rows: [], codeStarts: [], codeEnds: [] }
   const isCode: boolean[] = []
   for (const drawn of renderLines(markdown)) {
-    const line = drawn.isCode === true ? { ...drawn, text: untab(drawn.text) } : drawn
+    const line = drawn.isCode === true ? { ...drawn, text: untab(drawn.text, drawn.codeAt ?? 0) } : drawn
     const hang = line.isFlush === true ? 0 : (line.hang ?? 0)
     if (line.isCodeStart === true) layout.codeStarts.push(layout.rows.length)
     wrap(line.text.slice(hang), width - hang).forEach((row, i) => {
