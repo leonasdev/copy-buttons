@@ -13,6 +13,7 @@ One-click copy buttons for Claude Code: on each code block and table while the p
 - `Reply` copies the Markdown Claude wrote. Click again for the text as shown on screen.
 - A code block's `copy`, at its top right while the pointer is over it, copies just its code.
 - A table's three buttons copy it: `markdown` as Claude wrote it, `sheet` as rows you can paste into Excel or Google Sheets, `boxed` with its borders as drawn.
+- With the pointer on a block's button, a purple bar at its left marks what it copies; after a click the block turns grey while `✓ copied` shows.
 - A code block or table that cannot have its own buttons (see Known limitations below) gets one at the end of the answer instead, named by its file or language, or `table`. A table's copies its markdown first; click again for spreadsheet rows, and again for it boxed.
 
 ## 📦 Install
@@ -30,15 +31,14 @@ Set them when installing, or later in `/config`.
 | Setting | Options (default first) | What it does |
 | --- | --- | --- |
 | Icon style | `standard`, `nerd-font` | The icon before each button: `⧉`, or the Nerd Font copy icon, which needs a Nerd Font. |
-| Copy reply as | `markdown`, `rendered` | What the first click on `Reply` copies. The second click copies the other. |
-| Code block hover | `highlight`, `bar`, `off` | How a code block or table is marked while the pointer is over it: on a grey card, or with a bar at its left. `off` shows no buttons on them; each one's button stays at the end of the answer. |
-| Copied notice | `above-button`, `toast`, `above-prompt` | Where "copied" is shown after a copy: a line above the button, a toast at the top right, or a line above the prompt. |
+| Default Reply copy format | `markdown`, `rendered` | What the first click on `Reply` copies. The second click copies the other. |
+| Code & table buttons | `hover`, `always`, `end-of-answer` | When a code block's or table's buttons show: while the pointer is over it, or all the time (except one that would cover text in a narrow window). `end-of-answer` shows none on them; each one's button stays at the end of the answer. |
 
 ## 🔍 How it works
 
 To tell a turn's final answer from the notes Claude writes between tool calls, the plugin reads the session's transcript, which Claude Code keeps in `~/.claude/projects/`. It reads it with read-only commands: `sh` with `ls`, `grep`, `xargs`, `wc`, `awk`, `head` and `tail` on Linux, macOS and WSL, or `powershell.exe` on Windows.
 
-To put buttons on a code block or table, it lays the answer out as the terminal does at the window's width, and trusts that only while the answer's height matches the one Claude Code reports; otherwise they keep their buttons at the end of the answer. In `highlight` mode the card redraws their rows over Claude Code's own.
+To put buttons on a code block or table, it lays the answer out as the terminal does at the window's width, and trusts that only while the answer's height matches the one Claude Code reports; otherwise they keep their buttons at the end of the answer. After a copy, the grey card redraws their rows over Claude Code's own.
 
 It writes no files, keeps nothing between sessions and makes no network requests. Copying goes through Claude Code's own clipboard support.
 
@@ -63,7 +63,7 @@ Only a turn's final answer gets buttons, not the text Claude writes between tool
 <details>
 <summary>Nothing shows when the pointer is over a code block or table</summary>
 
-Your terminal reports clicks but not pointer motion, so Claude Code never sees the pointer over it. Set Code block hover to `off` in `/config`: each one's button then stays at the end of the answer, where a click is enough.
+Your terminal reports clicks but not pointer motion, so Claude Code never sees the pointer over it. Set Code & table buttons to `end-of-answer` in `/config`: each one's button then stays at the end of the answer, where a click is enough.
 
 </details>
 

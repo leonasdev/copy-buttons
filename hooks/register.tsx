@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderSurface } from 'claude-code'
 
-import type { Copied, Format, Notice } from '../types'
+import type { Copied, Format } from '../types'
 import { renderReply } from './render'
 import { GAP, labelOf, layoutRow, numbered, widthOfItem } from './fit'
 import type { RowItem, RowPress } from './row'
@@ -21,7 +21,7 @@ const ROW_RIGHT = 2
 // (`✻ Cogitated for 12m 34s · done Tuesday 5:30 PM`), and a gap after it.
 const CLOSING_LINE = 48
 // Why a copy failed, and what to do, for each reason the engine gives; told
-// in a toast whatever the copied notice setting, so it is seen. A terminal that
+// in a toast, so it is seen wherever the button was. A terminal that
 // drops an OSC 52 write says nothing, so that failure reads as a copy.
 const FAILURES: Record<'no-surface' | 'no-clipboard' | 'refused', string> = {
   'no-clipboard':
@@ -64,38 +64,16 @@ const HINT_MS = 10000
 // The page each paged row shows, by the reply's requestId.
 const pages = atom({ plugin: 'copy-buttons', key: 'pages' } as const, {} as Record<string, number>)
 
-// Where a copy is told: `copied 5 lines` above the action, a toast, or a line at
-// the right of the band above the prompt. The action's ✓ shows in every one.
-type NoticeAt = 'above-button' | 'toast' | 'above-prompt'
-const NOTICE_MS = 3000
+// What a press puts on the clipboard, and for an action with two formats the
+// one taken and the other.
+type Copy = { id: string; text: string; format?: Format; other?: Format }
 
-// The line the band shows after a copy, with the copy it belongs to.
-const notice = atom({ plugin: 'copy-buttons', key: 'notice' } as const, null as Notice | null)
-
-// What a press puts on the clipboard and how it is told: the text, its size
-// (`5 lines`), and for an action with two formats the one taken and the other.
-type Copy = { id: string; text: string; size: string; format?: Format; other?: Format }
-
-async function copy($: EngineInterface, what: Copy, surface: RenderSurface, noticeAt: NoticeAt) {
-  const { id, text, size, format, other } = what
+async function copy($: EngineInterface, what: Copy, surface: RenderSurface) {
+  const { id, text, format, other } = what
   const result = await $.ui.copy({ text, surface })
   if (!result.isCopied) {
     $.ui.toast(`✗ couldn't copy: ${FAILURES[result.reason]}`, { timeoutMs: FAILURE_MS })
     return
-  }
-
-  // What was copied, in green; where there is another format, how to take
-  // it, in grey after it (a toast draws both alike).
-  const message = format === undefined ? `✓ copied ${size} to clipboard` : `✓ copied ${size} as ${format}`
-  const hint = other === undefined ? undefined : hintFor(other)
-  if (noticeAt === 'toast') {
-    $.ui.toast(hint === undefined ? message : message + hint, { timeoutMs: NOTICE_MS })
-  } else if (noticeAt === 'above-prompt') {
-    const shown: Notice = { id: `${id}:${await $.clock.now()}`, text: message, hint }
-    await update($, notice, () => shown)
-    $.clock.after(NOTICE_MS, () => {
-      void update($, notice, last => (last?.id === shown.id ? null : last))
-    })
   }
 
   const stamp = await $.clock.now()
@@ -114,7 +92,6 @@ async function pressAction(
   requestId: string,
   action: Action,
   surface: RenderSurface,
-  noticeAt: NoticeAt,
 ): Promise<string> {
   const id = `${requestId}:${action.key}`
   const done = await read($, copied)
@@ -123,7 +100,7 @@ async function pressAction(
   const chosen = formats[at]
   const other = formats.length > 1 ? formats[(at + 1) % formats.length]?.format : undefined
   const text = chosen === undefined ? action.text : chosen.text()
-  await copy($, { id, text, size: (action.size ?? linesOf)(text), format: chosen?.format, other }, surface, noticeAt)
+  await copy($, { id, text, format: chosen?.format, other }, surface)
   return text
 }
 
@@ -205,35 +182,16 @@ export const register: Register = (on, options) => {
   const codeSizes = [{ width: wholeOf([BLOCK_LABEL]), height: 1 }, compact]
   const tableSizes = [{ width: wholeOf(TABLE_LABELS), height: TABLE_LABELS.length }, compact]
   const sizesOf: SizesOf = kind => (kind === 'code' ? codeSizes : tableSizes)
-  const noticeAt: NoticeAt =
-    options.copiedNotice === 'toast' || options.copiedNotice === 'above-prompt' ? options.copiedNotice : 'above-button'
   // The reply's first press copies this format; a press while it reads ✓
   // copies the other. A table's presses take its markdown, then rows for a
   // spreadsheet, then it as rendered, in turn.
   const replyFormats: Format[] = options.replyFormat === 'rendered' ? ['rendered', 'markdown'] : ['markdown', 'rendered']
-  // How a hovered code block is marked: its rows redrawn on a grey card, or a
-  // bar in the reply's left margin; or `off`, for a terminal that reports no
-  // pointer motion, every block's button kept on the closing line's row.
-  const blockHover = options.blockHover === 'bar' || options.blockHover === 'off' ? options.blockHover : 'highlight'
-
-  // The band's line sits at its right end, in the place the engine's own copy
-  // notice takes; with nothing to say the band is the engine's alone.
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const shown = noticeAt === 'above-prompt' && !e.props.hasSurvey ? await read($, notice) : null
-    if (shown === null) return next(e)
-
-    const { Box, Text } = $.ui.resolve(e)
-    const drawn = await next(e)
-    return (
-      <Box flexDirection="column">
-        {drawn}
-        <Box flexDirection="row" justifyContent="flex-end" paddingRight={ROW_RIGHT}>
-          <Text color="success">{shown.text}</Text>
-          {shown.hint !== undefined && <Text dimColor>{shown.hint}</Text>}
-        </Box>
-      </Box>
-    )
-  })
+  // When a block's buttons show: while the pointer is over it, or always (a
+  // button over a row's end still only then, so the row's text shows); or,
+  // for a terminal that reports no pointer motion, on the closing line's row
+  // with the reply's.
+  const blockButtons =
+    options.blockButtons === 'always' || options.blockButtons === 'end-of-answer' ? options.blockButtons : 'hover'
 
   // A reply drawn while its turn ran is asked again once the turn has ended.
   on('turn.complete', async ($, e, next) => {
@@ -256,7 +214,7 @@ export const register: Register = (on, options) => {
       return {}
     }
     const action = row.actions.get(key)
-    if (action !== undefined) await pressAction($, e.requestId, action, e.surface, noticeAt)
+    if (action !== undefined) await pressAction($, e.requestId, action, e.surface)
     return {}
   })
 
@@ -346,7 +304,7 @@ export const register: Register = (on, options) => {
     const columns = e.viewport?.columns ?? Infinity
     let blocks: Block[] = []
     let height = 0
-    if (blockHover !== 'off' && Number.isFinite(columns)) {
+    if (blockButtons !== 'end-of-answer' && Number.isFinite(columns)) {
       const layout = layoutOf(e.requestId, text, columns)
       height = layout.rows.length + 1
       const at = `${e.requestId}:${columns}`
@@ -415,14 +373,20 @@ export const register: Register = (on, options) => {
     const labelWidth = widthOf(label + hint)
 
     // Each block a hover scope over its rows, from the reply's left edge to
-    // its card's end, drawn under the reply. While the pointer is in one, its
-    // mark and its button show over the reply: the block's rows redrawn as
-    // drawn, on a grey card a column wider each side, or a bar in the left
-    // margin; with the pointer gone, all of it goes. A press shows the
-    // button's ✓ a moment whatever the pointer does: a plain copy of it lies
-    // under the mark, seen once the pointer leaves. A Box placed past the
-    // rows the viewport shows is held at its edge, over other rows, so a block
-    // is drawn only as far as it shows, its button on its first row there.
+    // its buttons' end, drawn under the reply. While the pointer is in one,
+    // its buttons show over the reply, and nothing else, so the block never
+    // reads as a button itself; with the pointer on one of them, an accent
+    // bar in the left margin, what a press takes: the buttons and the bar a
+    // hover group of their own, so the engine shows it with no hook run (the
+    // pointer on the bar, a column wide, keeps it). A press puts the block's
+    // rows, redrawn as drawn, on a grey card for as long as the ✓ shows,
+    // pointer or not, its buttons with it, so it is told what the press took.
+    // The card ends a column past the widest row, the buttons beside it off
+    // it; buttons within the rows' width (over a row's end, or beside a short
+    // row above wider ones) on it, the card as wide as they reach, so it
+    // shows no hole. A Box placed past the rows the viewport shows is held at
+    // its edge, over other rows, so a block is drawn only as far as it shows,
+    // its button on its first row there.
     const scopeOf = (block: Block) => `${e.requestId}:part-${block.index}`
     const shown = blocks.flatMap(block => {
       const part = onScreenPart(block, e.props.onScreen)
@@ -438,40 +402,43 @@ export const register: Register = (on, options) => {
       // Each button on a row of its own, as many as the rows on screen hold;
       // a space before one that covers a row's end.
       const buttons = buttonsOf(block.kind, size, nthOf(block.index)).slice(0, lines.length)
-      const onCard = blockHover === 'highlight' ? { background: 'subtle' } : {}
-      const mark =
-        blockHover === 'highlight' ? (
-          <Box key={`mark-${key}`} position="absolute" top={from - height} left={1} width={block.right - 1} height={lines.length} flexDirection="column" paddingLeft={1} backgroundColor="subtle" {...reveal}>
-            {lines.map((line, i) => <Text key={String(i)} wrap="truncate-end">{line === '' ? ' ' : line}</Text>)}
-          </Box>
-        ) : (
-          <Box key={`mark-${key}`} position="absolute" top={from - height} left={0} width={1} height={lines.length} flexDirection="column" {...reveal}>
-            {lines.map((_, i) => <Text key={String(i)} color="suggestion">▎</Text>)}
-          </Box>
-        )
+      const name = (i: number) => (i === 0 ? key : `${key}:${i}`)
       const drawnButtons = buttons.map(({ key: action, label }, i) => {
         const isDone = done?.id === `${e.requestId}:${action}`
         const read = label === undefined ? compactOf(isDone ? '✓' : icon) : isDone ? `✓ ${BLOCK_DONE}` : `${icon} ${label}`
         const text = isOver ? ` ${read}` : read
         const width = widthOf(text)
         const item: RowItem = { key: action, text, from: 0, to: width, tone: isDone ? 'done' : 'idle' }
-        const name = i === 0 ? key : `${key}:${i}`
-        return { name, top: from - height + i, item, width, isDone }
+        return { name: name(i), top: from - height + i, item, width, isDone }
       })
+      const isCopied = drawnButtons.some(button => button.isDone)
+      const isPinned = isCopied || (blockButtons === 'always' && !isOver)
+      const aim = `${scopeOf(block)}:buttons`
+      // The card's rows end a column past the widest; buttons from there on
+      // are beside it.
+      const widest = Math.max(...block.rows.map(row => 2 + widthOf(row.trimEnd())))
+      const isBeside = at > widest
+      const onCard = isCopied && !isBeside ? { background: 'subtle' } : {}
       return [
-        ...drawnButtons.flatMap(({ name, top, item, width, isDone }) =>
-          isDone
-            ? [
-                <Box key={`copied-${name}`} position="absolute" top={top} left={at}>
-                  <Client key={`${name}:copied`} module="./row.ts" props={{ items: [item], gap: GAP }} width={width} height={1} />
-                </Box>,
-              ]
-            : [],
-        ),
-        mark,
+        ...(!isCopied
+          ? [
+              <Box key={`bar-${key}`} position="absolute" top={from - height} left={0} width={1} height={lines.length} flexDirection="column" display="none" hover={{ scope: aim, display: 'flex' }}>
+                {lines.map((_, i) => <Text key={String(i)} color="suggestion">▎</Text>)}
+              </Box>,
+            ]
+          : []),
+        ...(isCopied
+          ? [
+              <Box key={`mark-${key}`} position="absolute" top={from - height} left={1} width={isBeside ? widest : block.right - 1} height={lines.length} flexDirection="column" paddingLeft={1} backgroundColor="subtle">
+                {lines.map((line, i) => <Text key={String(i)} wrap="truncate-end">{line === '' ? ' ' : line}</Text>)}
+              </Box>,
+            ]
+          : []),
         ...drawnButtons.map(({ name, top, item, width }) => (
-          <Box key={`button-${name}`} position="absolute" top={top} left={at} {...reveal}>
-            <Client key={name} module="./row.ts" props={{ items: [item], gap: GAP, ...onCard }} width={width} height={1} />
+          <Box key={`button-${name}`} position="absolute" top={top} left={at} {...(isPinned ? {} : reveal)}>
+            <Box hover={{ scope: aim }}>
+              <Client key={name} module="./row.ts" props={{ items: [item], gap: GAP, ...onCard }} width={width} height={1} />
+            </Box>
           </Box>
         )),
       ]
@@ -493,7 +460,7 @@ export const register: Register = (on, options) => {
         {drawn}
         <Box height={0} width="100%" position="relative">
           {marks}
-          {noticeAt === 'above-button' && !isAbove && doneAt >= 0 && (
+          {!isAbove && doneAt >= 0 && (
             <Box
               position="absolute"
               top={0}

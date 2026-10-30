@@ -458,7 +458,7 @@ test('a narrow terminal pages the row above the closing line', async ($, on) => 
   await ui.unmount()
 })
 
-test('a failed copy says why in a toast, and nothing reads ✓', { options: { copiedNotice: 'above-prompt' } }, async ($, on) => {
+test('a failed copy says why in a toast, and nothing reads ✓', async ($, on) => {
   engine(on)
   const toasts: string[] = []
   on('ui.copy', () => ({ value: { isCopied: false, reason: 'no-clipboard' } }))
@@ -520,51 +520,6 @@ test('the row brightens the item under the pointer in the accent colour, but not
   await ui.pointer({ type: 'leave', x: 0, y: 0, in: 'row' })
   expect((await drawnText('⧉ bash 1'))?.props.dimColor).toBe(true)
   await ui.unmount()
-})
-
-test('the toast notice raises a toast instead of the line above the button', { options: { copiedNotice: 'toast' } }, async ($, on) => {
-  engine(on)
-  const toasts: string[] = []
-  on('ui.copy', () => ({ value: { isCopied: true } }))
-  on('ui.toast', (_, e) => {
-    toasts.push(e.text)
-    return { value: undefined }
-  })
-
-  const ui = await $.ui.mount(MESSAGE)
-  await click(ui, 'copy-code:2')
-  expect(toasts).toEqual(['✓ copied 1 line to clipboard'])
-  expect(await ui.find({ type: 'Text', text: /^copied \d+ lines?$/ })).toBeUndefined()
-  expect((await item(ui, 'copy-code:2'))?.text).toBe('✓ ts')
-  await click(ui, 'copy-code:0')
-  expect(toasts[1]).toBe('✓ copied 2 lines to clipboard')
-  await ui.unmount()
-})
-
-test('the above-prompt notice shows a green line above the prompt, then clears it', { options: { copiedNotice: 'above-prompt' } }, async ($, on) => {
-  const clock = engine(on)
-  on('ui.copy', () => ({ value: { isCopied: true } }))
-
-  const BAND = {
-    plugin: 'copy-buttons',
-    component: 'AbovePrompt',
-    requestId: 'band',
-    surface: 'terminal',
-    props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 80, scroll: { offset: 0, bodyRows: 10 }, view: {} },
-  } as const
-  const band = await $.ui.mount(BAND)
-  expect(await band.find({ type: 'Text', text: /copied/ })).toBeUndefined()
-
-  const ui = await $.ui.mount(MESSAGE)
-  await click(ui, 'copy-code:2')
-  const line = await band.find({ type: 'Text', text: '✓ copied 1 line to clipboard' })
-  expect(line?.props.color).toBe('success')
-  expect(await ui.find({ type: 'Text', text: /^copied \d+ lines?$/ })).toBeUndefined()
-
-  await clock.advance(3000)
-  expect(await band.find({ type: 'Text', text: /copied/ })).toBeUndefined()
-  await ui.unmount()
-  await band.unmount()
 })
 
 test('the nerd-font style draws the Nerd Font icon', { options: { icon: 'nerd-font' } }, async ($, on) => {
@@ -760,8 +715,6 @@ test('each code block gets its own button once the engine agrees on the reply\'s
   await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
   expect(copied).toEqual(['pwd'])
   expect(await blockButton(ui, 'part-1')).toBe('✓ copied')
-  // A plain ✓ under the mark, seen once the pointer leaves the block.
-  expect(await blockButton(ui, 'part-1:copied')).toBe('✓ copied')
   await ui.unmount()
 })
 
@@ -788,23 +741,115 @@ test('an empty code block gets no button, on the row or its own, and is not coun
   await ui.unmount()
 })
 
-test('the bar mark draws a bar beside the block instead of a card', { options: { blockHover: 'bar' } }, async ($, on) => {
-  engine(on)
+test('a hovered block shows its buttons alone, and a press puts it on its card while its ✓ shows', async ($, on) => {
+  const clock = engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
   const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
-  expect(await ui.find({ type: 'Text', text: '▎' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: 'pwd' })).toBeUndefined()
+  const props = async (key: string) => (await ui.find({ type: 'Client', key }))?.props.props as RowProps | undefined
+  const card = () => ui.find({ type: 'Text', text: 'pwd' })
+  // The bar is there but hidden, shown only with the pointer on a button.
+  expect((await ui.find({ type: 'Box', key: 'bar-part-1' }))?.props.display).toBe('none')
+  expect(await card()).toBeUndefined()
+  expect((await props('part-1'))?.background).toBeUndefined()
+
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
+  expect(await card()).toBeDefined()
+  // Drawn whatever the pointer does, not as a hover reveal; the ✓ on it.
+  expect((await ui.find({ type: 'Box', key: 'mark-part-1' }))?.props.display).toBeUndefined()
+  // The card the rows' alone (`pwd`, a column each side), the button off it.
+  expect((await ui.find({ type: 'Box', key: 'mark-part-1' }))?.props.width).toBe(5)
+  expect((await props('part-1'))?.background).toBeUndefined()
+  expect((await ui.find({ type: 'Box', key: 'button-part-1' }))?.props.display).toBeUndefined()
+  expect(await ui.find({ type: 'Client', key: 'part-1:copied' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: 'console.log(1)' })).toBeUndefined()
+
+  await clock.advance(2000)
+  expect(await card()).toBeUndefined()
+  expect((await props('part-1'))?.background).toBeUndefined()
   await ui.unmount()
 })
 
-test('the highlight mark redraws the block\'s rows on a card', async ($, on) => {
+test('a copied table keeps its other buttons beside the pressed one\'s ✓', async ($, on) => {
   engine(on)
-  const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
-  expect(await ui.find({ type: 'Text', text: 'pwd' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: '▎' })).toBeUndefined()
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const ui = await $.ui.mount({ ...HOVERED, props: { text: TABLE_ANSWER, isFirstOfReply: true, onScreen: { first: 0, last: 9, of: 10 } } })
+  const shown = async (key: string) => (await ui.find({ type: 'Box', key: `button-${key}` }))?.props.display
+  expect(await shown('part-0:1')).toBe('none')
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-0:1' })
+  expect(await shown('part-0')).toBeUndefined()
+  expect(await shown('part-0:1')).toBeUndefined()
+  expect(await shown('part-0:2')).toBeUndefined()
+  expect(await blockButton(ui, 'part-0:1')).toBe('✓ copied')
+  expect(await blockButton(ui, 'part-0')).toBe('⧉ markdown')
   await ui.unmount()
 })
 
-test('with the hover off every block keeps its button on the row', { options: { blockHover: 'off' } }, async ($, on) => {
+test('a copied block whose button covers its row\'s end has the button on its card', async ($, on) => {
+  engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const text = ['```sh', 'x'.repeat(40), '```'].join('\n')
+  const of = layOut(text, 45).rows.length + 1
+  const ui = await $.ui.mount({ ...MESSAGE, viewport: { columns: 45, rows: 40 }, props: { text, isFirstOfReply: true, onScreen: { first: 0, last: of - 1, of } } })
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-0' })
+  expect((await ui.find({ type: 'Box', key: 'mark-part-0' }))?.props.width).toBe(44)
+  expect(((await ui.find({ type: 'Client', key: 'part-0' }))?.props.props as RowProps | undefined)?.background).toBe('subtle')
+  await ui.unmount()
+})
+
+test('a copied block whose button sits beside a short row above wider ones has the button on its card', async ($, on) => {
+  engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const text = ['```sh', 'cd ~/x', 'x'.repeat(36), '```'].join('\n')
+  const of = layOut(text, 45).rows.length + 1
+  const ui = await $.ui.mount({ ...MESSAGE, viewport: { columns: 45, rows: 40 }, props: { text, isFirstOfReply: true, onScreen: { first: 0, last: of - 1, of } } })
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-0' })
+  expect((await ui.find({ type: 'Box', key: 'mark-part-0' }))?.props.width).toBe(44)
+  expect(((await ui.find({ type: 'Client', key: 'part-0' }))?.props.props as RowProps | undefined)?.background).toBe('subtle')
+  await ui.unmount()
+})
+
+// The hover group a block button's Box joins: the Box inside its placed one,
+// as its children are drawn (a found element's own hover is not given).
+const groupOf = async (ui: Mounted, button: string) => {
+  const placed = (await ui.find({ type: 'Box', key: `button-${button}` })) as { children?: unknown[] } | undefined
+  return (placed?.children?.[0] as { hover?: { scope?: string } } | undefined)?.hover?.scope
+}
+
+test('a block\'s buttons share a hover group of their own, its hidden accent bar\'s, gone with a press', async ($, on) => {
+  engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const ui = await $.ui.mount({ ...HOVERED, props: { text: TABLE_ANSWER, isFirstOfReply: true, onScreen: { first: 0, last: 9, of: 10 } } })
+  expect((await ui.find({ type: 'Box', key: 'bar-part-0' }))?.props.display).toBe('none')
+  expect((await ui.find({ type: 'Text', text: '▎' }))?.props.color).toBe('suggestion')
+  for (const button of ['part-0', 'part-0:1', 'part-0:2']) expect(await groupOf(ui, button)).toBe('msg-1:part-0:buttons')
+  expect(await groupOf(ui, 'part-1')).toBe('msg-1:part-1:buttons')
+
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-0:1' })
+  expect(await ui.find({ type: 'Box', key: 'bar-part-0' })).toBeUndefined()
+  expect(await ui.find({ type: 'Box', key: 'mark-part-0' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('always shown, a block\'s buttons need no hover, but one over its row\'s end does', { options: { blockButtons: 'always' } }, async ($, on) => {
+  engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const shown = async (ui: Mounted, key: string) => (await ui.find({ type: 'Box', key: `button-${key}` }))?.props.display
+  const wide = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
+  expect(await shown(wide, 'part-1')).toBeUndefined()
+  await wide.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
+  // The button itself reads ✓; no copy of it beneath.
+  expect(await blockButton(wide, 'part-1')).toBe('✓ copied')
+  expect(await wide.find({ type: 'Client', key: 'part-1:copied' })).toBeUndefined()
+  await wide.unmount()
+
+  const text = ['```sh', 'x'.repeat(40), '```'].join('\n')
+  const of = layOut(text, 45).rows.length + 1
+  const narrow = await $.ui.mount({ ...MESSAGE, viewport: { columns: 45, rows: 40 }, props: { text, isFirstOfReply: true, onScreen: { first: 0, last: of - 1, of } } })
+  expect(await shown(narrow, 'part-0')).toBe('none')
+  await narrow.unmount()
+})
+
+test('at the end of the answer every block keeps its button on the row', { options: { blockButtons: 'end-of-answer' } }, async ($, on) => {
   engine(on)
   const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
   expect(await rowLabels(ui)).toEqual(['⧉ Reply', '⧉ bash 1', '⧉ bash 2', '⧉ ts'])

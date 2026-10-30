@@ -122,12 +122,18 @@ widths from 30 to 130 (`tests/fixtures/`):
 
 - Claude Code asks the terminal for every pointer move (mode 1003) and SGR
   reports; hover works wherever its own does. A terminal that reports clicks
-  only gets no hover: `blockHover: off`.
+  only gets no hover: `blockButtons: end-of-answer`.
 - A drag selection copies what is on screen, the plugin's text included
   (buttons, a card's redrawn rows). It does not go through `ui.copy`, so it
   cannot be filtered. The reply's two-column indent is left out of it.
 - Hover state freezes during a drag: what showed when the drag began stays.
 - A click on a `Client` is the module's own: no selection starts there.
+- A `Client` posts one `ui.message` a frame: a later post in the same frame
+  replaces an undelivered one, so a post on the pointer's leave would drop a
+  click just before it. What only lights while the pointer is on a button
+  (the block's bar) is a hover group instead: a Box around the `Client`,
+  given a `hover.scope`, lights its group while the pointer is on the
+  `Client`.
 - A click does not take the hover down.
 
 ## Side effects met while testing

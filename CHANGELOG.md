@@ -8,6 +8,23 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Added
+
+- Setting `blockButtons`: show a code block's or table's buttons on hover
+  (`hover`), all the time (`always`), or at the end of the answer
+  (`end-of-answer`).
+
+### Changed
+
+- A hovered code block or table shows its buttons alone, so the block no
+  longer looks like a button itself. The pointer on one shows a purple bar at
+  its left; a click puts it on a grey card while ✓ copied shows.
+
+### Removed
+
+- Setting `blockHover`. Its `off` is now `blockButtons` `end-of-answer`.
+- Setting `copiedNotice`: a copy is told above its button, as by default.
+
 ## [1.2.0] - 2026-10-30
 
 ### Changed

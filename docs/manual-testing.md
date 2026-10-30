@@ -14,7 +14,7 @@ for this session only:
 tmux -L spike new-session -d -s s -x 120 -y 300 -c ~/.claude/mods/copy-buttons \
   "claude --resume <session-id> --plugin-dir ~/.claude/mods/copy-buttons \
    --settings '{\"enabledPlugins\":{\"copy-buttons@copy-buttons\":false},\
-\"pluginConfigs\":{\"copy-buttons@inline\":{\"options\":{\"icon\":\"standard\",\"blockHover\":\"highlight\"}}}}'"
+\"pluginConfigs\":{\"copy-buttons@inline\":{\"options\":{\"icon\":\"standard\",\"blockButtons\":\"hover\"}}}}'"
 tmux -L spike set -g set-clipboard on   # copies land in tmux's buffer
 ```
 
@@ -67,9 +67,15 @@ draws its own text over the reply.
 
 ## Things to check after a change
 
-- Hover a code block and a table: card or bar, buttons at the top right.
+- Hover a code block and a table: the buttons alone, at the top right; the
+  pointer on one shows the purple bar at the block's left, gone when it moves
+  off onto the block; a click puts it on the grey card, its buttons with it,
+  as long as `✓ copied` shows, whether the pointer stays or leaves.
+- With `blockButtons` `always`: the buttons shown with the pointer away, one
+  over a row's end in a narrow window on hover only.
 - Click each button; `show-buffer` holds the right text; `✓ copied` shows,
-  and stays its moment after the pointer leaves.
+  and stays its moment after the pointer leaves. Send the press and a move
+  away in one go too (`m 0 …M; m 0 …m; m 35 60 2 M`): the copy still lands.
 - A narrow window (30–50 columns): wrapped blocks, the icon alone, covering.
 - A block scrolled half off the top and the bottom: the mark only on its rows
   on screen, the button on its first one.
