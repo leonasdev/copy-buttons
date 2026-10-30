@@ -1,111 +1,59 @@
 // Checks the `rendered` copy against the terminal's own drawing, sample by
-// sample: a Claude Code session in a detached tmux window wide enough that
-// nothing wraps is asked to answer with each sample verbatim; the answer as
-// the transcript recorded it goes through renderReply, and the result is
-// compared line by line with the screen.
+// sample: each sample is drawn by Claude Code as an answer, in a pane wide
+// enough that nothing wraps (dev/screens.ts); the sample goes through
+// renderReply, and the result is compared line by line with the screen.
+// Nothing is sent to the model.
 //
 //   bun dev/check-rendering.ts [sample.md ...]   (default: dev/samples/*.md)
 //
-// With CHECK_OUT=<folder>, each sample's answer, screen and rendered copy are
-// written there (<name>.answer.md, .screen.txt, .rendered.txt) to diff.
-//
-// Run it from a folder Claude Code trusts (the mod's own). Needs tmux, bun
-// and a signed-in `claude`. Each sample costs one short turn. The sessions it
-// starts are deleted afterwards.
+// With CHECK_OUT=<folder>, each sample's screen and rendered copy are
+// written there (<name>.screen.txt, .rendered.txt) to diff.
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { renderReply } from '../hooks/render'
+import { draw, VERSION } from './screens'
 
 const HERE = dirname(new URL(import.meta.url).pathname)
-// A folder Claude Code already trusts, or it stops at the trust question: the
-// one the check runs from (the mod's own, typically).
-const CWD = process.cwd()
-const PROJECTS = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'projects')
-const TMUX = 'copy-buttons-check'
-
-const sh = (...argv: string[]) => {
-  const ran = Bun.spawnSync(argv)
-  return ran.stdout.toString()
-}
-const sleep = (ms: number) => Bun.sleepSync(ms)
-const screen = () => sh('tmux', 'capture-pane', '-p', '-J', '-t', TMUX, '-S', '-')
-const closings = () => screen().split('\n').filter(line => /^✻ \S+ for /.test(line)).length
-
-const transcripts = () =>
-  readdirSync(PROJECTS).flatMap(dir => {
-    try {
-      return readdirSync(join(PROJECTS, dir))
-        .filter(name => name.endsWith('.jsonl'))
-        .map(name => join(PROJECTS, dir, name))
-    } catch {
-      return []
-    }
-  })
-
-// The last answer's text, as the transcript holds it.
-function lastAnswer(file: string): string | undefined {
-  const rows = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line))
-  for (const row of rows.reverse()) {
-    const block = row.message?.role === 'assistant' && !row.isSidechain ? row.message.content?.[0] : undefined
-    if (block?.type === 'text') return block.text
-  }
-  return undefined
-}
-
-// The answer as drawn: from its bullet to the closing line, the reply's
-// two-column indent taken off and trailing space trimmed.
-function drawnAnswer(): string[] {
-  const lines = screen().split('\n')
-  const end = lines.findLastIndex(line => /^✻ \S+ for /.test(line))
-  const start = lines.slice(0, end).findLastIndex(line => line.startsWith('● '))
-  return lines
-    .slice(start, end)
-    .map(line => line.slice(2).replace(/\s+$/, ''))
-    .join('\n')
-    .replace(/\n+$/, '')
-    .split('\n')
-}
+const COLUMNS = 400
 
 const samples = process.argv.slice(2).length > 0
   ? process.argv.slice(2).map(path => resolve(path))
   : readdirSync(join(HERE, 'samples')).filter(name => name.endsWith('.md')).sort().map(name => join(HERE, 'samples', name))
 
-const before = new Set(transcripts())
-sh('tmux', 'kill-session', '-t', TMUX)
-Bun.spawnSync(['tmux', 'new-session', '-d', '-s', TMUX, '-x', '400', '-y', '200', '-c', CWD, 'claude'])
-sleep(9000)
+// Where the copy differs from the screen on purpose, or tmux draws otherwise:
+// a table's rows past 200, which the copy keeps and the screen leaves out for
+// a line saying how many; and Devanagari, of which tmux drops vowel signs and
+// spaces, compared by its consonants (as in tests/copy-buttons.test.tsx).
+function asDrawn(screen: string[], copy: string[]): string[] {
+  let lines = copy
+  screen.forEach((row, i) => {
+    if (!/^… [\d,]+ more rows? not shown$/.test(row) || lines[i] === row) return
+    const end = lines.findIndex((line, k) => k >= i - 1 && line.startsWith('└'))
+    if (end >= 0) lines = [...lines.slice(0, i - 1), lines[end]!, row, ...lines.slice(end + 1)]
+  })
+  return lines
+}
+const consonants = (row: string) => (/[\u0900-\u097f]/.test(row) ? row.replace(/[^\u0915-\u0939]/g, '') : row)
+
+const answers = samples.map(sample => readFileSync(sample, 'utf8').trimEnd())
+const copies = answers.map(answer => renderReply(answer).split('\n'))
+const drawn = await draw(samples.map((sample, i) => ({ name: basename(sample), answer: answers[i]!, columns: COLUMNS, rows: copies[i]!.length })))
 
 let failed = 0
-for (const sample of samples) {
-  const seen = closings()
-  const prompt = `Read ${sample} with the Read tool, then reply with exactly its contents as your answer, verbatim, with nothing before or after.`
-  sh('tmux', 'send-keys', '-t', TMUX, '-l', prompt)
-  sleep(500)
-  sh('tmux', 'send-keys', '-t', TMUX, 'C-m')
-  for (let waited = 0; closings() <= seen && waited < 120_000; waited += 1000) sleep(1000)
-  sleep(1000)
-
-  const file = transcripts().filter(path => !before.has(path)).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0]
-  const answer = file === undefined ? undefined : lastAnswer(file)
-  if (answer === undefined) {
-    console.log(`✘ ${basename(sample)}: no answer found`)
-    failed++
-    continue
-  }
-  const want = drawnAnswer()
-  const got = renderReply(answer).split('\n')
+for (const [i, sample] of samples.entries()) {
+  const want = drawn[i]!
+  const got = asDrawn(want, copies[i]!)
   const out = process.env.CHECK_OUT
   if (out !== undefined) {
     mkdirSync(out, { recursive: true })
     const name = basename(sample, '.md')
-    writeFileSync(join(out, `${name}.answer.md`), answer)
     writeFileSync(join(out, `${name}.screen.txt`), `${want.join('\n')}\n`)
     writeFileSync(join(out, `${name}.rendered.txt`), `${got.join('\n')}\n`)
   }
-  const diffs = want.flatMap((line, i) => (line === got[i] ? [] : [i])).concat(got.length > want.length ? [want.length] : [])
+  const same = (i: number) => got[i] !== undefined && consonants(want[i]!) === consonants(got[i])
+  const diffs = want.flatMap((_, i) => (same(i) ? [] : [i])).concat(got.length > want.length ? [want.length] : [])
   if (diffs.length === 0) {
     console.log(`✔ ${basename(sample)}: ${want.length} lines identical`)
     continue
@@ -115,10 +63,7 @@ for (const sample of samples) {
   for (const i of diffs.slice(0, 12)) {
     console.log(`  line ${i + 1}\n    screen:   ${JSON.stringify(want[i] ?? null)}\n    rendered: ${JSON.stringify(got[i] ?? null)}`)
   }
-  if (answer.trimEnd() !== readFileSync(sample, 'utf8').trimEnd()) console.log('  (the answer is not the sample verbatim; compared against the answer)')
 }
 
-sh('tmux', 'kill-session', '-t', TMUX)
-for (const path of transcripts()) if (!before.has(path)) rmSync(path)
-console.log(failed === 0 ? 'all samples match' : `${failed} of ${samples.length} samples differ`)
+console.log(failed === 0 ? `all samples match Claude Code ${VERSION}` : `${failed} of ${samples.length} samples differ from Claude Code ${VERSION}`)
 process.exit(failed === 0 ? 0 : 1)

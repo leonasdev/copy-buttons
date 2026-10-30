@@ -2,7 +2,8 @@
 
 `claude plugin test .` checks the trees the hooks draw, not the screen. To see
 where things land, drive a real Claude Code in a tmux server of its own and read
-the screen back.
+the screen back. `dev/check-buttons.ts` does this for the main paths (hover,
+click, what each copy holds); the rest is below.
 
 ## Start a session on a fixed reply
 
@@ -18,11 +19,12 @@ tmux -L spike new-session -d -s s -x 120 -y 300 -c ~/.claude/mods/copy-buttons \
 tmux -L spike set -g set-clipboard on   # copies land in tmux's buffer
 ```
 
-To get a reply with given content, ask a fresh session (one short turn):
-`Read <file> with the Read tool, then reply with exactly its contents as your
-answer, verbatim, with nothing before or after.` Check the transcript
-(`~/.claude/projects/<cwd>/<id>.jsonl`) that the answer is verbatim (tabs kept).
-`dev/check-rendering.ts` does this for `dev/samples/`.
+To get a reply with given content, write it as a session of its own:
+`dev/screens.ts` writes one (a prompt, the answer and the turn's closing line,
+each row compact JSON, as Claude Code writes them; `"role": "assistant"` with a
+space is not read as the model's) and resumes it in a home of its own, signed
+out, the first run's questions answered. `dev/check-rendering.ts` draws
+`dev/samples/` that way.
 
 `/reload-plugins` in that session picks up changed hooks.
 
@@ -56,14 +58,12 @@ exactly, or a drag while hovered copies the difference.
 
 `tests/fixtures/` holds replies and their rows as Claude Code drew them at
 several widths; the tests lay each reply out at each width and expect those
-rows. To take them again (after a Claude Code update, say), resume the
-session holding the reply with no copy-buttons at all (`--settings
-'{"enabledPlugins":{"copy-buttons@copy-buttons":false}}'`, no `--plugin-dir`),
-in a pane tall enough for the whole conversation (`-y 1200` takes it down to
-30 columns), wait for its closing lines, and `capture-pane -p`. Keep the rows
-from the reply's `●` to the last one before the blank row above its `✻`, take
-the two columns of indent off and trim spaces at the end. A plugin left on
-draws its own text over the reply.
+rows. `bun dev/capture-fixtures.ts` takes them again (after a Claude Code
+update, say), nothing sent to the model: each reply resumed with no plugins at
+each width, in a pane tall enough for the whole conversation, the rows kept
+from the reply's `●` to the last one before the blank row above its `✻`, two
+columns of indent taken off and spaces at the end trimmed. A fixture drawn as
+before is left as it is; `git diff tests/fixtures/` shows one drawn otherwise.
 
 ## Things to check after a change
 
