@@ -11,7 +11,7 @@
 // load there.
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -65,8 +65,9 @@ const POWERSHELL = ['powershell.exe', 'pwsh'].find(name => Bun.which(name) !== n
 let config: string
 let projects: string
 beforeEach(() => {
-  // A space in the folder, as in a profile's name on Windows.
-  config = mkdtempSync(join(tmpdir(), 'copy-buttons readers-'))
+  // A space in the folder, as in a profile's name on Windows; its long name,
+  // as a reader prints it, where the temporary folder's is short (RUNNER~1).
+  config = realpathSync.native(mkdtempSync(join(tmpdir(), 'copy-buttons readers-')))
   projects = join(config, 'projects')
   mkdirSync(projects)
 })
