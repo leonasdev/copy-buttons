@@ -3,7 +3,7 @@
 All notable changes to copy-buttons. Versions follow [Semantic Versioning](https://semver.org):
 a removed or renamed setting option, or a changed default, is a major version.
 
-## Unreleased
+## 1.2.0 — 2026-10-30
 
 - A reply holding a table too wide for the window keeps each code block's
   and table's own buttons: the layout follows how Claude Code narrows such a
@@ -14,8 +14,8 @@ a removed or renamed setting option, or a changed default, is a major version.
   row starting with several spaces and a list in a very narrow window are
   laid out as Claude Code draws them, so their blocks keep their buttons.
 - Ordered lists more than three deep count in numbers, as Claude Code
-  counts them, so a reply holding one keeps its blocks' buttons and its
-  rendered copy reads as drawn; so do lists counted from 0 or past 3999.
+  counts them, so a card over such a list and the rendered copy read as
+  drawn; so do lists counted from 0 or past 3999.
 - An action on the closing line lights up under the pointer in the accent
   colour, as a block's own buttons do, not in the text's.
 - An empty code block no longer leaves a button on the closing line that
