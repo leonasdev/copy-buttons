@@ -104,7 +104,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 
 ## ⚠️ Known limitations
 
-- The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.312 and 2.1.314; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
+- The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.312 to 2.1.314; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
 - Code blocks and tables get no buttons of their own in an answer holding a `mermaid` code block: Claude Code draws it as a diagram, which the plugin does not follow. Their buttons are at the end of the answer instead.
 - In tmux, an answer holding Devanagari (Hindi) is drawn a row lower below each line tmux finds too long, so a block's bar and flash there look a row off.
 - In a narrow window a block's or table's button can cover the end of its first row while the pointer is over it.
@@ -115,6 +115,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 - `claude plugin test .` runs the tests. `bun test ./dev/check-readers.ts` runs the scripts that read the transcript, which those tests stand in for. [docs/manual-testing.md](docs/manual-testing.md) shows how to check the buttons on a real screen, which the tests cannot.
 - After a Claude Code update, `bun dev/capture-fixtures.ts` takes the screens the layout tests expect again, `bun dev/check-rendering.ts` checks the `rendered` copy against the screen, and `bun dev/check-buttons.ts` hovers and clicks the buttons on a real screen and reads back what they copy. They need tmux, and resume sessions of their own: nothing is sent to the model, and no sign-in is needed. `bun dev/check-transcripts.ts` reads the newest transcripts Claude Code wrote on your machine as the plugin does, and checks the scan against each row's fields. `bun dev/check-live.ts` has Haiku answer a turn with the plugin loaded, and checks the transcript Claude Code writes then; it needs `CLAUDE_CODE_OAUTH_TOKEN`, from `claude setup-token`.
 - `dev/release-check.sh` runs every check a release needs, and changes nothing.
+- CI (`.github/workflows/`) runs the checks on each pull request and push to `main` with the Claude Code in `.github/claude-code-version`, and on macOS and Windows too for a release's tag. Every six hours it looks for a new Claude Code and checks it once, a turn the model answers included (with the `CLAUDE_CODE_OAUTH_TOKEN` secret): one that fails opens an issue; one that passes closes those of the versions before it and updates `.github/claude-code-version` and "Tested with" above in a pull request.
 
 ### Releasing
 
