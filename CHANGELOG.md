@@ -8,6 +8,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-30
+
 ### Fixed
 
 - A forked session whose own transcript is not written yet finds its replies
@@ -87,7 +89,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 - Tables copy as spreadsheet rows, or as drawn.
 - Settings: `icon`, `replyFormat`, `copiedNotice`.
 
-[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/leonasdev/copy-buttons/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/leonasdev/copy-buttons/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/leonasdev/copy-buttons/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/leonasdev/copy-buttons/compare/v1.1.0...v1.2.0
