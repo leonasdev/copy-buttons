@@ -113,6 +113,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 ## Development
 
 - `claude plugin test .` runs the tests. `bun test ./dev/check-readers.ts` runs the scripts that read the transcript, which those tests stand in for. [docs/manual-testing.md](docs/manual-testing.md) shows how to check the buttons on a real screen, which the tests cannot.
+- After a Claude Code update, `bun dev/capture-fixtures.ts` takes the screens the layout tests expect again, `bun dev/check-rendering.ts` checks the `rendered` copy against the screen, and `bun dev/check-buttons.ts` hovers and clicks the buttons on a real screen and reads back what they copy. They need tmux, and resume sessions of their own: nothing is sent to the model, and no sign-in is needed.
 - `dev/release-check.sh` runs every check a release needs, and changes nothing.
 
 ### Releasing
