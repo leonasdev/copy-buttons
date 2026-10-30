@@ -1,8 +1,8 @@
 #!/bin/sh
 # Everything to run before a release: the manifest and the directory's rules,
-# the tests, the types, a CHANGELOG entry for the version being released, and
-# marketplace.json installing that version's tag. It changes nothing;
-# dev/release.sh runs it before committing a release.
+# the tests, the transcript readers' scripts, the types, a CHANGELOG entry for
+# the version being released, and marketplace.json installing that version's
+# tag. It changes nothing; dev/release.sh runs it before committing a release.
 # What it cannot check (the buttons on a real screen) is in README's
 # Development section.
 #
@@ -18,6 +18,8 @@ step 'validate --profile directory'
 claude plugin validate . --profile directory
 step 'test'
 claude plugin test .
+step 'readers'
+bun test ./dev/check-readers.ts
 step 'tsc'
 npx -y -p typescript@5.6.3 tsc -p .
 
