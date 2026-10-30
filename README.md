@@ -112,17 +112,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 
 ## Development
 
-- `claude plugin test .` runs the tests. `bun test ./dev/check-readers.ts` runs the scripts that read the transcript, which those tests stand in for. [docs/manual-testing.md](docs/manual-testing.md) shows how to check the buttons on a real screen, which the tests cannot.
-- After a Claude Code update, `bun dev/capture-fixtures.ts` takes the screens the layout tests expect again, `bun dev/check-rendering.ts` checks the `rendered` copy against the screen, and `bun dev/check-buttons.ts` hovers and clicks the buttons on a real screen and reads back what they copy. They need tmux, and resume sessions of their own: nothing is sent to the model, and no sign-in is needed. `bun dev/check-transcripts.ts` reads the newest transcripts Claude Code wrote on your machine as the plugin does, and checks the scan against each row's fields. `bun dev/check-live.ts` has Haiku answer a turn with the plugin loaded, and checks the transcript Claude Code writes then; it needs `CLAUDE_CODE_OAUTH_TOKEN`, from `claude setup-token`.
-- `dev/release-check.sh` runs every check a release needs, and changes nothing.
-- CI (`.github/workflows/`) runs the checks on each pull request and push to `main` with the Claude Code in `.github/claude-code-version`, and on macOS and Windows too for a release's tag. Every six hours it looks for a new Claude Code and checks it once, a turn the model answers included (with the `CLAUDE_CODE_OAUTH_TOKEN` secret): one that fails opens an issue; one that passes closes those of the versions before it and updates `.github/claude-code-version` and "Tested with" above in a pull request.
-
-### Releasing
-
-Pushing to `main` reaches no one: the marketplace installs the tag named in `.claude-plugin/marketplace.json`, and only a release moves it.
-
-1. Note each change users will see under `## [Unreleased]` in `CHANGELOG.md`.
-2. Run `dev/release.sh <version>`, the version picked by [Semantic Versioning](https://semver.org) and the rule at the top of the changelog. It dates the entries, sets the version in `plugin.json` and the tag in `marketplace.json`, runs `dev/release-check.sh`, then commits, tags, pushes both together and makes the GitHub release. If a check fails it puts the files back and commits nothing; if `[Unreleased]` is empty it lists the commits since the last release.
+The checks, CI and releasing: [docs/development.md](docs/development.md).
 
 ## Credits
 
