@@ -1,10 +1,14 @@
-// Checks the transcript reader (hooks/readers.ts) against the transcripts
-// Claude Code has written here: the tokens its scan prints for each, against
-// those each row's parsed fields call for. Where Claude Code writes rows the
-// scan reads otherwise (a new row type holding the same words, a field
-// renamed), they differ. Also flags what the scan would miss quietly: an
-// interactive session's transcript with answers and no closing line, and row
-// types or content the check has not seen before.
+// Looks for what Claude Code writes that the transcript reader
+// (hooks/readers.ts) does not expect, in the transcripts written here: the
+// tokens its scan prints for each, against those each row's parsed fields
+// call for. Where Claude Code writes rows the scan reads otherwise (a new row
+// type holding the same words, a field renamed), they differ. Also flags what
+// the scan would miss quietly: an interactive session's transcript with
+// answers and no closing line, and row types or content not seen before.
+//
+// No test: what it reads, and so finds, depends on what was done here
+// lately. A case it turns up belongs in dev/check-readers.ts, where it stays.
+// dev/check-live.ts runs it on the one transcript a new Claude Code writes.
 //
 //   bun dev/check-transcripts.ts [transcript.jsonl ...]   (default: the newest 30)
 //
