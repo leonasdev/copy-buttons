@@ -1,7 +1,8 @@
 import { Lexer, Tokenizer } from './vendor/marked.js'
 import type { Token, Tokens } from './vendor/marked.js'
 
-import { widthOf } from './width'
+import { boxed, piped } from './table'
+import type { Grid } from './table'
 
 // Lays a reply's Markdown out as text the way the terminal draws it, minus
 // the wrapping at the screen's width: what the person sees, to paste where
@@ -11,8 +12,24 @@ import { widthOf } from './width'
 // the terminal draws code blocks and quotes unindented. `hang` is where its
 // wrapped rows start (past a list item's marker); `part` marks a code
 // block's or a table's line, `isPartStart` its first, and `codeAt` is where
-// a code line's code starts (past a quote's `▎ `).
-export type Line = { text: string; isFlush?: true; hang?: number; part?: 'code' | 'table'; isPartStart?: true; codeAt?: number }
+// a code line's code starts (past a quote's `▎ `). `isQuote` marks a quote's
+// line, its wrapped rows starting with its bar again. A table drawn in boxes
+// is one line holding its cells (`grid`), drawn whole or fitted to the
+// screen's width. A list item's line names the item (`item`): the columns
+// before its marker, its marker's cell (the marker and a space) and, on its
+// first line, the marker, which a narrow screen draws in less room.
+export type Item = { indent: number; cell: number; marker?: string }
+export type Line = {
+  text: string
+  isFlush?: true
+  hang?: number
+  part?: 'code' | 'table'
+  isPartStart?: true
+  codeAt?: number
+  isQuote?: true
+  grid?: Grid
+  item?: Item
+}
 
 // Inline marks are dropped (`**`, `*`, backticks), entities left as written
 // (`&amp;`); a link reads `text (url)`, `text (url) ("title")` with a title,
@@ -70,6 +87,16 @@ function ordinal(n: number, depth: number): string {
   return String(n)
 }
 
+// A quote in a list item is drawn as text, its bar too: its wrapped rows do
+// not start with it again.
+const asText = ({ isQuote, ...line }: Line): Line => line
+
+function endsApart(item: Tokens.ListItem | undefined): boolean {
+  const last = item?.tokens.at(-1)
+  if (last?.type === 'list') return endsApart((last as Tokens.List).items.at(-1))
+  return last?.type === 'space' || last?.type === 'heading' || last?.type === 'table'
+}
+
 function list(token: Tokens.List, depth: number): Line[] {
   const lines: Line[] = []
   const start = typeof token.start === 'number' ? token.start : 1
@@ -77,44 +104,45 @@ function list(token: Tokens.List, depth: number): Line[] {
     const marker = token.ordered ? `${ordinal(start + i, depth)}.` : '-'
     const lead = `${marker} ${item.task ? `[${item.checked ? 'x' : ' '}] ` : ''}`
     const pad = ' '.repeat(marker.length + 1)
-    const body = blocks(item.tokens, depth + 1)
+    const body = blocks(item.tokens, depth + 1, true).map(asText)
+    // A blank line before an item after one that ends in a blank line, a
+    // heading or a table.
+    if (i > 0 && endsApart(token.items[i - 1])) lines.push({ text: '' })
+    // A line of a nested item stays its item's, now further in.
+    const itemOf = (line: Line, isFirst: boolean): Item =>
+      line.item !== undefined
+        ? { ...line.item, indent: line.item.indent + pad.length }
+        : { indent: 0, cell: pad.length, ...(isFirst ? { marker } : {}) }
     body.forEach((line, j) => {
       const hang = pad.length + (line.hang ?? 0)
-      if (j === 0) lines.push({ ...line, text: lead + line.text, hang })
+      if (j === 0) lines.push({ ...line, text: lead + line.text, hang, item: itemOf(line, true) })
       else if (line.isFlush === true || line.text === '') lines.push(line)
-      else lines.push({ ...line, text: pad + line.text, hang })
+      else lines.push({ ...line, text: pad + line.text, hang, item: itemOf(line, false) })
     })
   })
   return lines
 }
 
-// Each cell padded by one, each column three wide at least; the header
-// centered, the body as the column aligns; a rule between every two rows.
-function table(token: Tokens.Table): Line[] {
-  const header = token.header.map(cell => inline(cell.tokens))
-  const rows = token.rows.map(row => row.map(cell => inline(cell.tokens)))
-  const widths = header.map((text, c) => Math.max(3, widthOf(text), ...rows.map(row => widthOf(row[c] ?? ''))))
+// A table's cells as the reply reads them.
+const gridOf = (token: Tokens.Table): Grid => ({
+  header: token.header.map(cell => inline(cell.tokens)),
+  rows: token.rows.map(row => row.map(cell => inline(cell.tokens))),
+  align: token.align,
+})
 
-  const place = (text: string, width: number, align: string | null) => {
-    const room = width - widthOf(text)
-    if (align === 'right') return ' '.repeat(room) + text
-    if (align === 'center') return ' '.repeat(Math.floor(room / 2)) + text + ' '.repeat(Math.ceil(room / 2))
-    return text + ' '.repeat(room)
-  }
-  const rule = (left: string, mid: string, right: string) =>
-    left + widths.map(width => '─'.repeat(width + 2)).join(mid) + right
-  const row = (cells: string[], align: (c: number) => string | null) =>
-    `│${cells.map((text, c) => ` ${place(text, widths[c] ?? 0, align(c))} `).join('│')}│`
+// A code block's or a table's lines, the first marking where it starts.
+export const asPart = (texts: readonly string[], part: 'code' | 'table', more: Omit<Line, 'text'> = {}): Line[] =>
+  texts.map((text, i) => ({ ...more, text, part, ...(i === 0 ? { isPartStart: true } : {}) }))
 
-  const lines = [rule('┌', '┬', '┐'), row(header, () => 'center')]
-  for (const cells of rows) {
-    lines.push(rule('├', '┼', '┤'), row(cells, c => token.align[c] ?? null))
-  }
-  lines.push(rule('└', '┴', '┘'))
-  return lines.map((text, i) => ({ text, part: 'table' as const, ...(i === 0 ? { isPartStart: true as const } : {}) }))
+// In boxes, one line holding its cells, drawn where the reply is laid out; in
+// a list item or a quote as Markdown, at the left edge like code.
+function table(token: Tokens.Table, isInside: boolean): Line[] {
+  const grid = gridOf(token)
+  if (isInside) return asPart(piped(grid), 'table', { isFlush: true })
+  return [{ text: '', part: 'table', isPartStart: true, grid }]
 }
 
-function block(token: Token, depth: number): Line[] {
+function block(token: Token, depth: number, isInside: boolean): Line[] {
   switch (token.type) {
     case 'heading':
     case 'paragraph':
@@ -122,25 +150,21 @@ function block(token: Token, depth: number): Line[] {
     case 'text':
       return toLines('tokens' in token && token.tokens !== undefined ? inline(token.tokens) : token.text)
     case 'code':
-      return toLines(token.text).map((line, i) => ({
-        ...line,
-        isFlush: true as const,
-        part: 'code' as const,
-        ...(i === 0 ? { isPartStart: true as const } : {}),
-      }))
+      return asPart(token.text.split('\n'), 'code', { isFlush: true })
     case 'hr':
       return [{ text: '---' }]
     case 'blockquote':
-      return blocks(token.tokens, depth).map(line => ({
+      return blocks(token.tokens, depth, true).map(line => ({
         ...line,
         text: line.text === '' ? '▎' : `▎ ${line.text}`,
         isFlush: true as const,
+        isQuote: true as const,
         ...(line.part === 'code' ? { codeAt: (line.codeAt ?? 0) + 2 } : {}),
       }))
     case 'list':
       return list(token as Tokens.List, depth)
     case 'table':
-      return table(token as Tokens.Table)
+      return table(token as Tokens.Table, isInside)
     case 'space':
       return []
     default:
@@ -149,9 +173,10 @@ function block(token: Token, depth: number): Line[] {
 }
 
 // Blocks in order, one blank line between two where the Markdown has blank
-// lines between them, after a heading, and around a table; two blocks
-// written on consecutive lines (a paragraph and the code under it) touch.
-function blocks(tokens: readonly Token[] | undefined, depth: number): Line[] {
+// lines between them, after a heading, and around a table but one in a list
+// item or a quote (`isInside`); two blocks written on consecutive lines (a
+// paragraph and the code under it) touch.
+function blocks(tokens: readonly Token[] | undefined, depth: number, isInside = false): Line[] {
   const lines: Line[] = []
   let previous: Token | undefined
   let isApart = false
@@ -160,9 +185,10 @@ function blocks(tokens: readonly Token[] | undefined, depth: number): Line[] {
       isApart = true
       continue
     }
-    const drawn = block(token, depth)
+    const drawn = block(token, depth, isInside)
     if (drawn.length === 0) continue
-    const isSpaced = isApart || previous?.type === 'heading' || previous?.type === 'table' || token.type === 'table'
+    const isTable = !isInside && (previous?.type === 'table' || token.type === 'table')
+    const isSpaced = isApart || previous?.type === 'heading' || isTable
     if (previous !== undefined && isSpaced) lines.push({ text: '' })
     lines.push(...drawn)
     previous = token
@@ -180,7 +206,7 @@ class NoDefinitions extends Tokenizer {
 }
 
 // A table alone, laid out as the terminal draws it.
-export const renderTable = (token: Tokens.Table): string => table(token).map(line => line.text).join('\n')
+export const renderTable = (token: Tokens.Table): string => boxed(gridOf(token)).join('\n')
 
 // The reply's tokens as the terminal reads them.
 export const lex = (markdown: string): Token[] => new Lexer({ gfm: true, tokenizer: new NoDefinitions() }).lex(markdown)
@@ -197,10 +223,11 @@ export function tsvOf(token: Tokens.Table): string {
 export function renderReply(markdown: string): string {
   const tokens = lex(markdown)
   return blocks(tokens, 0)
-    .map(line => line.text.replace(/\s+$/, ''))
+    .flatMap(line => (line.grid === undefined ? [line.text] : boxed(line.grid)))
+    .map(text => text.replace(/\s+$/, ''))
     .join('\n')
 }
 
-// The reply's lines as `renderReply` lays them out, with what the wrapping
-// at the screen's width needs.
+// The reply's lines as `renderReply` lays them out, a table in boxes still
+// its cells, with what the wrapping at the screen's width needs.
 export const renderLines = (markdown: string): Line[] => blocks(lex(markdown), 0)

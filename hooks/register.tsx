@@ -127,6 +127,9 @@ async function pressAction(
   return text
 }
 
+// An empty code block, which has nothing to copy: it gets no button.
+const isEmpty = (part: Copyable) => part.kind === 'code' && part.code === ''
+
 // A final answer's code blocks and tables with their names, read once per
 // text: a redraw (a scroll moving the viewport's edge across it) reuses them.
 type Parts = { parts: Copyable[]; names: string[]; labels: string[] }
@@ -136,10 +139,15 @@ function partsOf(requestId: string, text: string): Parts {
   const known = partsByReply.get(requestId)
   if (known?.text === text) return known
   // Code blocks and tables in reading order: a block named by the file it
-  // names, else its language; a table `table`; numbered where names repeat.
+  // names, else its language; a table `table`; numbered where names repeat,
+  // an empty block not counted.
   const parts = copyables(text)
-  const names = parts.map(part => (part.kind === 'table' ? 'table' : (part.file ?? (part.language || 'code'))))
-  const found = { text, parts, names, labels: numbered(names) }
+  const nameOf = (part: Copyable) => (part.kind === 'table' ? 'table' : (part.file ?? (part.language || 'code')))
+  const names = parts.map(nameOf)
+  const counted = numbered(parts.filter(part => !isEmpty(part)).map(nameOf))
+  let next = 0
+  const labels = parts.map(part => (isEmpty(part) ? '' : (counted[next++] ?? '')))
+  const found = { text, parts, names, labels }
   partsByReply.set(requestId, found)
   return found
 }
@@ -306,25 +314,28 @@ export const register: Register = (on, options) => {
         formats: replyFormats.map(format => ({ format, text: () => replyText(format) })),
         size: copiedText => count([...copiedText].length, 'char'),
       },
-      ...parts.map((part, i): Action => {
+      ...parts.flatMap((part, i): Action[] => {
+        if (isEmpty(part)) return []
         // Keys count code blocks and tables apart, so a block's key is the same
         // whatever tables the reply holds.
         const n = parts.slice(0, i).filter(other => other.kind === part.kind).length
         const base = { label: labels[i] ?? part.kind, isReply: false, name: names[i] }
         if (part.kind === 'table') {
-          return {
-            ...base,
-            key: `copy-table:${n}`,
-            text: part.markdown,
-            formats: [
-              { format: 'markdown', text: () => part.markdown },
-              { format: 'spreadsheet', text: () => part.tsv },
-              { format: 'rendered', text: () => part.rendered },
-            ],
-            size: () => count(part.rows, 'row'),
-          }
+          return [
+            {
+              ...base,
+              key: `copy-table:${n}`,
+              text: part.markdown,
+              formats: [
+                { format: 'markdown', text: () => part.markdown },
+                { format: 'spreadsheet', text: () => part.tsv },
+                { format: 'rendered', text: () => part.rendered },
+              ],
+              size: () => count(part.rows, 'row'),
+            },
+          ]
         }
-        return { ...base, key: `copy-code:${n}`, text: part.code, isFile: part.file !== undefined, size: linesOf }
+        return [{ ...base, key: `copy-code:${n}`, text: part.code, isFile: part.file !== undefined, size: linesOf }]
       }),
     ]
     // Each code block and table gets buttons of its own, shown while the
@@ -343,8 +354,7 @@ export const register: Register = (on, options) => {
       if (of !== undefined) agreed.set(at, of === height)
       const isSame = layout.parts.map(span => span.kind).join() === parts.map(part => part.kind).join()
       if (agreed.get(at) === true && isSame) {
-        const isEmpty = parts.map(part => part.kind === 'code' && part.code === '')
-        blocks = placeBlocks(layout, isEmpty, columns, sizesOf)
+        blocks = placeBlocks(layout, parts.map(isEmpty), columns, sizesOf)
       }
     }
     // A part's number among those of its kind, as the actions' keys count.

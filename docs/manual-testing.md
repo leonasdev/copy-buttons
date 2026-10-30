@@ -52,6 +52,19 @@ tmux -L spike show-buffer               # what the last copy put on the clipboar
 Compare a block's rows hovered and not: the card's text must match the reply's
 exactly, or a drag while hovered copies the difference.
 
+## Screens for the layout tests
+
+`tests/fixtures/` holds replies and their rows as Claude Code drew them at
+several widths; the tests lay each reply out at each width and expect those
+rows. To take them again (after a Claude Code update, say), resume the
+session holding the reply with no copy-buttons at all (`--settings
+'{"enabledPlugins":{"copy-buttons@copy-buttons":false}}'`, no `--plugin-dir`),
+in a pane tall enough for the whole conversation (`-y 1200` takes it down to
+30 columns), wait for its closing lines, and `capture-pane -p`. Keep the rows
+from the reply's `●` to the last one before the blank row above its `✻`, take
+the two columns of indent off and trim spaces at the end. A plugin left on
+draws its own text over the reply.
+
 ## Things to check after a change
 
 - Hover a code block and a table: card or bar, buttons at the top right.
@@ -60,4 +73,9 @@ exactly, or a drag while hovered copies the difference.
 - A narrow window (30–50 columns): wrapped blocks, the icon alone, covering.
 - A block scrolled half off the top and the bottom: the mark only on its rows
   on screen, the button on its first one.
-- A reply holding a table wider than the window: everything on the closing line.
+- A reply holding a table wider than the window (session `69ff2c81…`'s second
+  reply below 100 columns): the table narrowed or drawn as lines, the card's
+  rows the screen's own, every other block with its own button.
+- A reply holding tables in list items and quotes, and text in other scripts
+  (session `1ae9ae8d…`, `dev/samples/11-nested-tables.md` and `12-scripts.md`):
+  each table its own buttons; below Hindi, tmux draws the reply a row lower.

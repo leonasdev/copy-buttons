@@ -1,7 +1,8 @@
 # How Claude Code draws a reply, and what the plugin relies on
 
-Facts the hover buttons depend on, each checked against Claude Code 2.1.312 on a
-real screen (tmux, see `manual-testing.md`) unless marked otherwise. A Claude
+Facts the hover buttons depend on, each checked against Claude Code 2.1.312 and
+2.1.314 on a real screen (tmux, see `manual-testing.md`) unless marked
+otherwise. A Claude
 Code update can change any of them; the guard in `hooks/register.tsx` (height
 and parts must match) keeps a wrong guess from drawing a button on a wrong row.
 
@@ -9,17 +10,38 @@ and parts must match) keeps a wrong guess from drawing a button on a wrong row.
 
 - A reply is drawn two columns in (`● ` on its first row), so its text has
   `columns - 2` cells.
-- Lines wrap as wrap-ansi wraps them: at spaces, a word wider than the row
-  broken where the row ends. Rows after the first lose their leading spaces.
-  `hooks/wrap.ts` `wrap()` follows this; `tests/` holds rows taken from screens.
+- Lines wrap as wrap-ansi wraps them with `trim: false` (Ink calls
+  `Bun.wrapAnsi`): at spaces, a word wider than the row broken where the row
+  ends. A row after the first loses one leading space, where more than spaces
+  follows (Ink's `mv()`); more stay. `hooks/wrap.ts` `wrap()` follows this;
+  `tests/fixtures/` holds rows taken from screens.
+- Widths, as Claude Code counts them in wrapping and in tables, are
+  `hooks/width.ts` `widthOf()`'s: by grapheme, an emoji sequence 2, any other
+  the sum of its code points' (a mark, Hebrew points and Devanagari vowel
+  signs among them, 0; an East Asian wide character, Tangut too, 2; else 1),
+  so a Devanagari conjunct takes a column per consonant. Checked on Hebrew,
+  Devanagari, Cyrillic with accents, Vietnamese and Tangut. Claude Code's own
+  `Bun.stringWidth` is Bun 1.4.4's; Bun 1.3.10's differs (it counts Hebrew
+  points), so a local `bun` is no oracle for it. tmux draws Devanagari wider
+  than Claude Code lays it out and pushes the overflow onto a row of its own,
+  so on a tmux screen everything below such a row sits a row lower than laid
+  out (the card too looks a row off there).
 - A list item's wrapped rows start under its text (past `1. ` or `- `); nested
-  items add their own marker's width.
+  items add their own marker's width. On a narrow screen an item has
+  `columns - 14` for its indent and marker: the indent is kept to that less 2,
+  the marker's cell (marker and space) to what is left, 2 at least, so
+  `1. level four` can read `1.level four` (`Fs()` in Claude Code's list).
+- A list item ending in a table, a heading or a blank line has a blank row
+  after it.
 - Code blocks are drawn flush: no indent inside a list item, and their wrapped
   rows start at column 0 of the reply too.
 - A code block written right after a paragraph or a list item's text touches it
   (no blank row between). Two code blocks can touch too (an indented block, a
   blank line, then a fence).
-- A quote's lines read `▎ ` + the line; an empty quote line is `▎`.
+- A quote's lines read `▎ ` + the line; an empty quote line is `▎`. A quote at
+  the reply's left edge is a box with a bar: its wrapped rows start with `▎ `
+  again and wrap two columns narrower. A quote in a list item is drawn as text,
+  bar and all: its wrapped rows start at column 0.
 - Tabs in code run to the next multiple of 8 columns, counted from where the
   code starts (past a quote's `▎ `), a wide character counting 2.
 - `mermaid` fences are drawn as diagrams, not as code: the layout does not
@@ -27,14 +49,13 @@ and parts must match) keeps a wrong guess from drawing a button on a wrong row.
 
 ## Tables
 
-A table that fits is drawn as `hooks/render.ts` `table()` lays it out: each
-column as wide as its widest cell (3 at least), the header centered, a rule
-between every two rows.
+A table at the reply's left edge is drawn as `hooks/table.ts` `fitted()` lays
+it out for the full `columns` (not the reply's `columns - 2`), read from Claude
+Code's own table component and checked row for row on its screens at 13
+widths from 30 to 130 (`tests/fixtures/`):
 
-It fits when its width is at most `columns - 4` (not `columns - 2`). Past that,
-Claude Code narrows it; this is **not yet followed** by the plugin. The rules,
-read from Claude Code's own table component (2.1.312):
-
+- It fits when its width is at most `columns - 4`: each column as wide as its
+  widest cell (3 at least), the header centered, a rule between every two rows.
 - Per column: an ideal width (its widest cell) and a minimum width (its longest
   word), both at least 3.
 - Room for the cells: `columns - (1 + 3 × columnCount) - 4`, but at least
@@ -43,16 +64,25 @@ read from Claude Code's own table component (2.1.312):
   column gets its minimum plus `floor(share × spare)`, `share` its ideal minus
   minimum over the sum of those. Else each gets `max(floor(minimum × room /
   sumOfMinimums), 3)` and words may be broken (`hard`).
-- Each cell wraps at its column's width (wrap-ansi, `trim: false`, word wrap,
-  empty rows dropped). A row is as tall as its tallest cell; shorter cells are
-  centered vertically (`floor((tall - own) / 2)` blank rows above).
+- Each cell wraps at its column's width as wrap-ansi wraps with `trim: false`
+  and word wrap (Claude Code calls `Bun.wrapAnsi`), empty rows dropped: a space
+  where a row ends exactly starts the next row (`│  over the lazy dog`). A row
+  is as tall as its tallest cell; shorter cells are centered vertically
+  (`floor((tall - own) / 2)` blank rows above).
 - If any cell takes more than 4 rows, or the drawn table is still wider than
-  `columns - 4`, the table is drawn vertically instead: for each data row,
+  `columns - 4`, the table is drawn as lines instead: for each data row,
   `Header: value` lines (the header bold), long values wrapped, rows separated
   by a rule of `─` `min(columns - 1, 40)` long. These lines are made for the
-  full `columns` and may wrap again in the reply's `columns - 2` (unverified).
-- At most 200 data rows are drawn, then `… N more rows not shown`.
-- A table inside a list item or a quote takes another path, not yet read.
+  full `columns`, so one can be `columns - 1` wide: the reply's `columns - 2`
+  rows wrap it again, as they wrap prose.
+- At most 200 data rows are drawn, then `… N more rows not shown` (read from
+  the source, not seen on a screen).
+- A table inside a list item or a quote is drawn as `hooks/table.ts` `piped()`
+  lays it out: as Markdown (`| a | b |` lines, `|---|` under the header, each
+  column its widest cell, 3 at least, every cell the header's too as its
+  column aligns), never narrowed, its rows wrapped like any text. In a list
+  item it is drawn at column 0, like code, and touches the text above it when
+  the Markdown does; in a quote each row reads `▎ ` + the row.
 
 ## What a render hook gets and may draw
 

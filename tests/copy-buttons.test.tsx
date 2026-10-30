@@ -9,6 +9,9 @@ import type { RowItem, RowProps } from '../hooks/row'
 import { fold, useReader } from '../hooks/transcript'
 import { onScreenPart, placeBlocks, placeOn } from '../hooks/place'
 import { layOut, wrap } from '../hooks/wrap'
+import * as samples from './fixtures/samples'
+import * as nested from './fixtures/nested'
+import * as tmuxAgents from './fixtures/tmux-agents'
 
 const ANSWER = [
   'Run this:',
@@ -206,6 +209,10 @@ test('widths count emoji as two, combining marks as nothing', () => {
   expect(widthOf('e\u0301')).toBe(1)
   expect(widthOf('「引號」')).toBe(8)
   expect(widthOf('ok')).toBe(2)
+  // A mark nothing, a Devanagari conjunct a column for each consonant.
+  expect(widthOf('שָׁלוֹם')).toBe(4)
+  expect(widthOf('न्दी')).toBe(2)
+  expect(widthOf('𗀀')).toBe(2)
 })
 
 test('a reply is final when the closing line is the next thing after it', () => {
@@ -764,6 +771,21 @@ test('a reply whose height the engine does not agree on keeps its blocks on the 
   await ui.unmount()
 })
 
+test('an empty code block gets no button, on the row or its own, and is not counted', async ($, on) => {
+  engine(on)
+  const copied: string[] = []
+  on('ui.copy', (_, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
+  const text = ['```sh', 'ls', '```', '', '```sh', '```', '', '```sh', 'pwd', '```'].join('\n')
+  const ui = await $.ui.mount({ ...HOVERED, props: { text, isFirstOfReply: true, onScreen: { first: 0, last: 98, of: 99 } } })
+  expect(await rowLabels(ui)).toEqual(['⧉ Reply', '⧉ sh 1', '⧉ sh 2'])
+  await click(ui, 'copy-code:2')
+  expect(copied).toEqual(['pwd'])
+  await ui.unmount()
+})
+
 test('the bar mark draws a bar beside the block instead of a card', { options: { blockHover: 'bar' } }, async ($, on) => {
   engine(on)
   const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
@@ -797,6 +819,103 @@ test('tables and code blocks are laid out in reading order, each by its rows', (
     { kind: 'table', start: 2, end: 6 },
     { kind: 'code', start: 8, end: 8 },
   ])
+})
+
+// Every row of a reply as the terminal drew it at each width: tables that
+// fit, narrowed (cells wrapped, words broken) and drawn as lines, wrapped
+// again in the reply's narrower rows; tables in list items and quotes;
+// Hebrew, Devanagari, Cyrillic, Vietnamese and Tangut text. A row of
+// Devanagari, which tmux draws otherwise, by its consonants.
+const asDrawn = (row: string) => (/[\u0900-\u097f]/.test(row) ? row.replace(/[^\u0915-\u0939]/g, '') : row)
+for (const [name, fixture] of [['the samples', samples], ['a reply with listed code', tmuxAgents], ['nested tables and scripts', nested]] as const) {
+  for (const [columns, screen] of Object.entries(fixture.screens)) {
+    test(`${name} lay out as the terminal drew them ${columns} columns wide`, () => {
+      expect(layOut(fixture.answer, Number(columns)).rows.map(row => asDrawn(row.trimEnd()))).toEqual(screen.map(asDrawn))
+    })
+  }
+}
+
+test('a table too wide for the screen is one part, narrowed or as lines', () => {
+  const rowsOf = (columns: number) => {
+    const layout = layOut(samples.answer, columns)
+    const wide = layout.parts.filter(part => part.kind === 'table')[3]
+    return wide === undefined ? [] : layout.rows.slice(wide.start, wide.end + 1).map(row => row.trimEnd())
+  }
+  expect(rowsOf(80)).toEqual([
+    '┌─────────────────────────┬──────────────────────┬───────┬─────────┬──────┐',
+    '│          Wide           │       Columns        │ Here  │   And   │ More │',
+    '├─────────────────────────┼──────────────────────┼───────┼─────────┼──────┤',
+    '│ the quick brown fox     │ 中文內容比較長的一格 │ ✅    │ 👨‍👩‍👧      │ end  │',
+    '│ jumps over the lazy dog │                      │ done  │ family  │      │',
+    '└─────────────────────────┴──────────────────────┴───────┴─────────┴──────┘',
+  ])
+  expect(rowsOf(46)).toEqual([
+    'Wide: the quick brown fox jumps over the',
+    'lazy',
+    'dog',
+    'Columns: 中文內容比較長的一格',
+    'Here: ✅ done',
+    'And: 👨‍👩‍👧 family',
+    'More: end',
+  ])
+})
+
+const WIDE_ANSWER = ['| name | note |', '| --- | --- |', '| a | the quick brown fox jumps over the lazy dog |'].join('\n')
+
+test('a reply holding a table too wide for the screen still gives it its own buttons', async ($, on) => {
+  engine(on)
+  const layout = layOut(WIDE_ANSWER, 40)
+  expect(layout.rows.map(row => row.trimEnd())).toEqual([
+    '┌──────┬───────────────────────────┐',
+    '│ name │           note            │',
+    '├──────┼───────────────────────────┤',
+    '│ a    │ the quick brown fox jumps │',
+    '│      │  over the lazy dog        │',
+    '└──────┴───────────────────────────┘',
+  ])
+  const height = layout.rows.length + 1
+  const props = { text: WIDE_ANSWER, isFirstOfReply: true, onScreen: { first: 0, last: height - 1, of: height } }
+  const ui = await $.ui.mount({ ...MESSAGE, viewport: { columns: 40, rows: 40 }, props })
+  expect(await rowLabels(ui)).toEqual(['⧉ Reply'])
+  expect(await ui.find({ type: 'Client', key: 'part-0' })).toBeDefined()
+  await ui.unmount()
+  // Boxed copies the table whole, as drawn where it fits.
+  expect(copyables(WIDE_ANSWER)[0]).toMatchObject({
+    rendered: [
+      '┌──────┬─────────────────────────────────────────────┐',
+      '│ name │                    note                     │',
+      '├──────┼─────────────────────────────────────────────┤',
+      '│ a    │ the quick brown fox jumps over the lazy dog │',
+      '└──────┴─────────────────────────────────────────────┘',
+    ].join('\n'),
+  })
+})
+
+// A table in a list item or a quote is drawn as Markdown, at the left edge
+// in a list, never narrowed.
+test('a table in a list item or a quote is drawn as Markdown and has its own buttons', async ($, on) => {
+  engine(on)
+  const text = `- items:\n\n  ${WIDE_ANSWER.replace(/\n/g, '\n  ')}\n\n> | x |\n> |--:|\n> | 10 |\n\n\`\`\`sh\nls\n\`\`\``
+  const layout = layOut(text, 60)
+  expect(layout.rows.map(row => row.trimEnd())).toEqual([
+    '- items:',
+    '',
+    '| name | note                                        |',
+    '|------|---------------------------------------------|',
+    '| a    | the quick brown fox jumps over the lazy dog |',
+    '',
+    '▎ |   x |',
+    '▎ |-----|',
+    '▎ |  10 |',
+    '',
+    'ls',
+  ])
+  expect(layout.parts.map(part => part.kind)).toEqual(['table', 'table', 'code'])
+  const height = layout.rows.length + 1
+  const props = { text, isFirstOfReply: true, onScreen: { first: 0, last: height - 1, of: height } }
+  const ui = await $.ui.mount({ ...MESSAGE, viewport: { columns: 60, rows: 40 }, props })
+  expect(await rowLabels(ui)).toEqual(['⧉ Reply'])
+  await ui.unmount()
 })
 
 test('a table shows its three buttons where they fit, else one as its icon', () => {

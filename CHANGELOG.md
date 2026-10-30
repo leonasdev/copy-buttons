@@ -3,6 +3,19 @@
 All notable changes to copy-buttons. Versions follow [Semantic Versioning](https://semver.org):
 a removed or renamed setting option, or a changed default, is a major version.
 
+## Unreleased
+
+- A reply holding a table too wide for the window keeps each code block's
+  and table's own buttons: the layout follows how Claude Code narrows such a
+  table, wraps its cells or draws it as lines.
+- So does one holding a table in a list item or a quote, which Claude Code
+  draws as Markdown; `Reply` copied as rendered draws it so too.
+- Replies in Hebrew, Hindi and other scripts with marks, a wrapped quote, a
+  row starting with several spaces and a list in a very narrow window are
+  laid out as Claude Code draws them, so their blocks keep their buttons.
+- An empty code block no longer leaves a button on the closing line that
+  copied nothing, nor takes a number from the blocks named like it.
+
 ## 1.1.0 — 2026-10-29
 
 - Each code block's own button, and each table's three (`markdown`, `sheet`,

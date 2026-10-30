@@ -70,7 +70,7 @@ Your terminal reports clicks but not pointer motion, so Claude Code never sees t
 <details>
 <summary>A code block or table has no button of its own</summary>
 
-Its button is at the end of the answer instead when the answer holds a table wider than the window (Claude Code narrows it in a way the plugin does not follow), or for a moment after the answer is first drawn. An empty code block has no button at all.
+Its button is at the end of the answer instead when the plugin cannot follow how Claude Code draws the answer (a `mermaid` diagram, say, or a Claude Code update changing how it draws), or for a moment after the answer is first drawn. An empty code block has no button at all.
 
 </details>
 
@@ -104,8 +104,9 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 
 ## ⚠️ Known limitations
 
-- The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.312; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
-- Code blocks and tables get no buttons of their own in an answer holding a table wider than the window.
+- The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.312 and 2.1.314; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
+- Code blocks and tables get no buttons of their own in an answer holding a `mermaid` diagram.
+- In tmux, an answer holding Devanagari (Hindi) is drawn a row lower below each line tmux finds too long, so a block's card there looks a row off.
 - In a narrow window a block's or table's button can cover the end of its first row while the pointer is over it.
 - Not yet tested on macOS or native Windows.
 
