@@ -11,8 +11,10 @@ declare module 'claude-code' {
   interface PluginState {
     // `pages`: the page a paged row shows, by the reply's requestId.
     // `toldFullscreen`: whether this session was told the buttons need fullscreen.
+    // `flashed`: the stamp of the copy whose block still flashes.
     'copy-buttons': {
       copied: Copied | null
+      flashed: number | null
       pages: Record<string, number>
       toldFullscreen: boolean
     }

@@ -16,6 +16,10 @@ import { layOut } from './wrap'
 import type { Layout } from './wrap'
 
 const DONE_MS = 1500
+// How long a press lights its block's rows, a flash as a yank's in an editor,
+// in the colour a selection takes: a key of the theme, though not one typed.
+const FLASH_MS = 500
+const SELECTION = 'selectionBg'
 const ROW_RIGHT = 2
 // Room the turn's closing line takes at the row's left
 // (`✻ Cogitated for 12m 34s · done Tuesday 5:30 PM`), and a gap after it.
@@ -49,6 +53,10 @@ const ICONS: Record<string, string> = {
 // the row keeps its width and nothing moves.
 const copied = atom({ plugin: 'copy-buttons', key: 'copied' } as const, null as Copied | null)
 
+// The stamp of the copy whose block still flashes: its card shows while this
+// is the last copy's, a moment of the ✓'s.
+const flashed = atom({ plugin: 'copy-buttons', key: 'flashed' } as const, null as number | null)
+
 // A reply's verdict never changes once its turn has ended: read it once.
 const finals = new Map<string, boolean>()
 
@@ -78,6 +86,10 @@ async function copy($: EngineInterface, what: Copy, surface: RenderSurface) {
 
   const stamp = await $.clock.now()
   await update($, copied, () => ({ id, format, other, stamp }))
+  await update($, flashed, () => stamp)
+  $.clock.after(FLASH_MS, () => {
+    void update($, flashed, last => (last === stamp ? null : last))
+  })
   $.clock.after(DONE_MS, () => {
     void update($, copied, last => (last?.stamp === stamp ? null : last))
   })
@@ -257,6 +269,7 @@ export const register: Register = (on, options) => {
     const { Box, Text, Client } = $.ui.resolve(e)
     const { parts, names, labels } = partsOf(e.requestId, text)
     const done = await read($, copied)
+    const isFlashing = done !== null && (await read($, flashed)) === done.stamp
     const page = (await read($, pages))[e.requestId] ?? 0
     const drawn = await next(e)
 
@@ -378,9 +391,10 @@ export const register: Register = (on, options) => {
     // reads as a button itself; with the pointer on one of them, an accent
     // bar in the left margin, what a press takes: the buttons and the bar a
     // hover group of their own, so the engine shows it with no hook run (the
-    // pointer on the bar, a column wide, keeps it). A press puts the block's
-    // rows, redrawn as drawn, on a grey card for as long as the ✓ shows,
-    // pointer or not, its buttons with it, so it is told what the press took.
+    // pointer on the bar, a column wide, keeps it). A press flashes the
+    // block's rows, redrawn as drawn, on a card in the theme's selection
+    // colour, pointer or not, so it is told what the press took, as a
+    // selection would show it; its buttons stay as long as the ✓ shows.
     // The card ends a column past the widest row, the buttons beside it off
     // it; buttons within the rows' width (over a row's end, or beside a short
     // row above wider ones) on it, the card as wide as they reach, so it
@@ -412,24 +426,25 @@ export const register: Register = (on, options) => {
         return { name: name(i), top: from - height + i, item, width, isDone }
       })
       const isCopied = drawnButtons.some(button => button.isDone)
+      const isFlashed = isCopied && isFlashing
       const isPinned = isCopied || (blockButtons === 'always' && !isOver)
       const aim = `${scopeOf(block)}:buttons`
       // The card's rows end a column past the widest; buttons from there on
       // are beside it.
       const widest = Math.max(...block.rows.map(row => 2 + widthOf(row.trimEnd())))
       const isBeside = at > widest
-      const onCard = isCopied && !isBeside ? { background: 'subtle' } : {}
+      const onCard = isFlashed && !isBeside ? { background: SELECTION } : {}
       return [
-        ...(!isCopied
+        ...(!isFlashed
           ? [
               <Box key={`bar-${key}`} position="absolute" top={from - height} left={0} width={1} height={lines.length} flexDirection="column" display="none" hover={{ scope: aim, display: 'flex' }}>
                 {lines.map((_, i) => <Text key={String(i)} color="suggestion">▎</Text>)}
               </Box>,
             ]
           : []),
-        ...(isCopied
+        ...(isFlashed
           ? [
-              <Box key={`mark-${key}`} position="absolute" top={from - height} left={1} width={isBeside ? widest : block.right - 1} height={lines.length} flexDirection="column" paddingLeft={1} backgroundColor="subtle">
+              <Box key={`mark-${key}`} position="absolute" top={from - height} left={1} width={isBeside ? widest : block.right - 1} height={lines.length} flexDirection="column" paddingLeft={1} backgroundColor={SELECTION}>
                 {lines.map((line, i) => <Text key={String(i)} wrap="truncate-end">{line === '' ? ' ' : line}</Text>)}
               </Box>,
             ]

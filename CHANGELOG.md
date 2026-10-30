@@ -8,6 +8,12 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Changed
+
+- A click on a code block's or table's button flashes the block for a
+  moment, in the colour a mouse selection takes, instead of keeping it grey
+  while ✓ copied shows.
+
 ## [1.3.0] - 2026-10-30
 
 ### Added

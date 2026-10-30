@@ -741,7 +741,7 @@ test('an empty code block gets no button, on the row or its own, and is not coun
   await ui.unmount()
 })
 
-test('a hovered block shows its buttons alone, and a press puts it on its card while its ✓ shows', async ($, on) => {
+test('a hovered block shows its buttons alone, and a press flashes it on its card, its ✓ staying longer', async ($, on) => {
   const clock = engine(on)
   on('ui.copy', () => ({ value: { isCopied: true } }))
   const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
@@ -763,9 +763,30 @@ test('a hovered block shows its buttons alone, and a press puts it on its card w
   expect(await ui.find({ type: 'Client', key: 'part-1:copied' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: 'console.log(1)' })).toBeUndefined()
 
-  await clock.advance(2000)
+  // The flash goes after 500ms; the ✓ and the button stay their 1.5s.
+  await clock.advance(500)
   expect(await card()).toBeUndefined()
-  expect((await props('part-1'))?.background).toBeUndefined()
+  expect(await blockButton(ui, 'part-1')).toBe('✓ copied')
+  expect((await ui.find({ type: 'Box', key: 'button-part-1' }))?.props.display).toBeUndefined()
+  await clock.advance(1000)
+  expect(await blockButton(ui, 'part-1')).toBe('⧉ copy')
+  expect((await ui.find({ type: 'Box', key: 'button-part-1' }))?.props.display).toBe('none')
+  await ui.unmount()
+})
+
+test('a second press within the flash flashes again for its own 500ms', async ($, on) => {
+  const clock = engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
+  const card = () => ui.find({ type: 'Box', key: 'mark-part-1' })
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
+  await clock.advance(300)
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
+  // The first press's timer lands here and must not end the second's flash.
+  await clock.advance(300)
+  expect(await card()).toBeDefined()
+  await clock.advance(200)
+  expect(await card()).toBeUndefined()
   await ui.unmount()
 })
 
@@ -792,7 +813,7 @@ test('a copied block whose button covers its row\'s end has the button on its ca
   const ui = await $.ui.mount({ ...MESSAGE, viewport: { columns: 45, rows: 40 }, props: { text, isFirstOfReply: true, onScreen: { first: 0, last: of - 1, of } } })
   await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-0' })
   expect((await ui.find({ type: 'Box', key: 'mark-part-0' }))?.props.width).toBe(44)
-  expect(((await ui.find({ type: 'Client', key: 'part-0' }))?.props.props as RowProps | undefined)?.background).toBe('subtle')
+  expect(((await ui.find({ type: 'Client', key: 'part-0' }))?.props.props as RowProps | undefined)?.background).toBe('selectionBg')
   await ui.unmount()
 })
 
@@ -804,7 +825,7 @@ test('a copied block whose button sits beside a short row above wider ones has t
   const ui = await $.ui.mount({ ...MESSAGE, viewport: { columns: 45, rows: 40 }, props: { text, isFirstOfReply: true, onScreen: { first: 0, last: of - 1, of } } })
   await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-0' })
   expect((await ui.find({ type: 'Box', key: 'mark-part-0' }))?.props.width).toBe(44)
-  expect(((await ui.find({ type: 'Client', key: 'part-0' }))?.props.props as RowProps | undefined)?.background).toBe('subtle')
+  expect(((await ui.find({ type: 'Client', key: 'part-0' }))?.props.props as RowProps | undefined)?.background).toBe('selectionBg')
   await ui.unmount()
 })
 

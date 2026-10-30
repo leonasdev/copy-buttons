@@ -107,8 +107,11 @@ widths from 30 to 130 (`tests/fixtures/`):
   viewport's edge, over other rows, not clipped. Everything is clipped to the
   rows on screen by hand (`onScreenPart`).
 - A Box drawn over the reply with a background hides the reply's text there;
-  one drawn under it shows only in cells the reply leaves empty. So the grey
-  card redraws the block's rows itself, from the layout.
+  one drawn under it shows only in cells the reply leaves empty. So the flash
+  redraws the block's rows itself, from the layout.
+- A colour may name any key the theme holds, not only those `ThemeKey` types:
+  `selectionBg` is a drag selection's (38,79,120 dark, 180,213,255 light,
+  ANSI blue in `dark-ansi`, cyan in `light-ansi`).
 - Box `hover`: a keyed Box is a hover scope; `hover.scope` joins a named group
   across sites; `display: 'none'` with `hover: { display: 'flex' }` reveals. A
   Box drawn `display: 'flex'` with a hover reveal is refused (the whole render
