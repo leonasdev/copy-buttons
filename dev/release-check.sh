@@ -21,14 +21,18 @@ npx -y -p typescript@5.6.3 tsc -p .
 
 step 'changelog'
 version=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' .claude-plugin/plugin.json | head -n 1)
-if grep -q "^## $version " CHANGELOG.md; then
+# Keep a Changelog: a dated heading for the version, and its link at the end.
+if grep -Eq "^## \[$version\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; then
   echo "CHANGELOG.md has $version"
+elif grep -q "^## \[$version\]" CHANGELOG.md; then
+  echo "CHANGELOG.md has $version undated: date it before the release commit" >&2
+  exit 1
 else
-  echo "CHANGELOG.md has no entry for $version" >&2
+  echo "CHANGELOG.md has no entry for $version: move [Unreleased]'s entries under ## [$version] - <date>" >&2
   exit 1
 fi
-if grep -q "^## $version .*unreleased" CHANGELOG.md; then
-  echo "CHANGELOG.md still marks $version unreleased: date it before the release commit" >&2
+if ! grep -q "^\[$version\]: " CHANGELOG.md; then
+  echo "CHANGELOG.md has no link for [$version] at its end" >&2
   exit 1
 fi
 

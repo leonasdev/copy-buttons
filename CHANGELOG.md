@@ -1,50 +1,58 @@
 # Changelog
 
-All notable changes to copy-buttons. Versions follow [Semantic Versioning](https://semver.org):
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 a removed or renamed setting option, or a changed default, is a major version.
 
-## 1.2.0 — 2026-10-30
+## [Unreleased]
 
-- A reply holding a table too wide for the window keeps each code block's
-  and table's own buttons: the layout follows how Claude Code narrows such a
-  table, wraps its cells or draws it as lines.
-- So does one holding a table in a list item or a quote, which Claude Code
-  draws as Markdown; `Reply` copied as rendered draws it so too.
-- Replies in Hebrew, Hindi and other scripts with marks, a wrapped quote, a
-  row starting with several spaces and a list in a very narrow window are
-  laid out as Claude Code draws them, so their blocks keep their buttons.
-- Ordered lists more than three deep count in numbers, as Claude Code
-  counts them, so a card over such a list and the rendered copy read as
-  drawn; so do lists counted from 0 or past 3999.
-- An action on the closing line lights up under the pointer in the accent
-  colour, as a block's own buttons do, not in the text's.
-- An empty code block no longer leaves a button on the closing line that
-  copied nothing, nor takes a number from the blocks named like it.
+## [1.2.0] - 2026-10-30
 
-## 1.1.0 — 2026-10-29
+### Changed
 
-- Each code block's own button, and each table's three (`markdown`, `sheet`,
-  `boxed`) one under another, at its top right while the pointer is over it,
-  the part marked on a grey card or with a bar at its left. One they cannot
-  be placed for keeps its button on the closing line.
-- Code blocks indented with tabs, or holding tabs anywhere, get their own
-  button too.
-- Tables also copy as markdown. On the closing line a table's button copies
-  its markdown first; a second click while it shows ✓ takes spreadsheet rows,
-  then boxed.
-- New setting `blockHover` (`highlight`, `bar`, `off`). `off` is for a
-  terminal that reports no pointer motion: each block keeps its button on the
-  closing line.
-- Hovered actions light up in bold instead of inverting.
+- The buttons at the end of an answer turn purple on hover, like a code
+  block's.
 
-## 1.0.0 — 2026-10-27
+### Fixed
 
-First release.
+- Code blocks and tables kept no hover buttons of their own in answers:
+  - with a table too wide for the window
+  - with a table inside a list or a quote
+  - with lists nested four or more levels deep
+  - in very narrow windows
+  - in Hebrew, Hindi and other scripts with accent marks
+- An empty code block got a button that copied nothing.
 
-- Copy buttons on the closing line of each turn's final answer: the whole
-  reply, each code block, each table.
-- `Reply` copies Markdown or the reply as rendered; a second click while it
-  shows ✓ copies the other.
-- Tables copy as tab-separated rows for spreadsheets, or as rendered.
-- Settings: `icon` (`standard`, `nerd-font`), `replyFormat` (`markdown`,
-  `rendered`), `copiedNotice` (`above-button`, `toast`, `above-prompt`).
+## [1.1.0] - 2026-10-29
+
+### Added
+
+- Hover buttons: point at a code block to copy it, or at a table to copy it
+  as Markdown (`markdown`), as spreadsheet rows (`sheet`) or with its
+  borders (`boxed`).
+- Setting `blockHover`: mark the hovered block with a grey card
+  (`highlight`) or a bar at its left (`bar`), or turn hover buttons off
+  (`off`) for terminals that don't report mouse movement.
+- Tables can be copied as Markdown. At the end of an answer, click a table's
+  button again to switch to spreadsheet rows, then to boxed.
+
+### Changed
+
+- Buttons turn bold on hover instead of inverting.
+
+## [1.0.0] - 2026-10-27
+
+### Added
+
+- Copy buttons at the end of each answer: the whole reply, each code block,
+  each table.
+- `Reply` copies the Markdown; click again for the text as shown on screen.
+- Tables copy as spreadsheet rows, or as drawn.
+- Settings: `icon`, `replyFormat`, `copiedNotice`.
+
+[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/leonasdev/copy-buttons/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/leonasdev/copy-buttons/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/leonasdev/copy-buttons/releases/tag/v1.0.0
