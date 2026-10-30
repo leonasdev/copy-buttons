@@ -33,6 +33,11 @@ and parts must match) keeps a wrong guess from drawing a button on a wrong row.
   `1. level four` can read `1.level four` (`Fs()` in Claude Code's list).
 - A list item ending in a table, a heading or a blank line has a blank row
   after it.
+- Ordered lists count `1.` at the top, `a.` one deep (`z.` then `aa.`), `i.`
+  two deep, and `1.` deeper still. One deep a list starting below 1 counts in
+  numbers; two deep, so does one starting below 1 or running past 3999. A
+  marker wider than the cell a narrow screen leaves it wraps in the cell
+  (`3998` over `.`), the item as tall as its marker or its text.
 - Code blocks are drawn flush: no indent inside a list item, and their wrapped
   rows start at column 0 of the reply too.
 - A code block written right after a paragraph or a list item's text touches it
@@ -44,8 +49,13 @@ and parts must match) keeps a wrong guess from drawing a button on a wrong row.
   bar and all: its wrapped rows start at column 0.
 - Tabs in code run to the next multiple of 8 columns, counted from where the
   code starts (past a quote's `▎ `), a wide character counting 2.
-- `mermaid` fences are drawn as diagrams, not as code: the layout does not
-  follow them, so a reply holding one keeps its buttons on the closing line.
+- `mermaid` fences are drawn as diagrams, not as code. The layout does not
+  follow them: the diagram's rows would mean copying Claude Code's diagram
+  drawing, large and likely to change. A reply holding one keeps every
+  block's button on the closing line. Left so on purpose; a narrower way
+  out, not taken: the blocks above the diagram sit where the layout puts
+  them whatever its height, so they could keep their own buttons, but with
+  no height to check them against (the guard checks the whole reply's).
 
 ## Tables
 
@@ -75,8 +85,8 @@ widths from 30 to 130 (`tests/fixtures/`):
   by a rule of `─` `min(columns - 1, 40)` long. These lines are made for the
   full `columns`, so one can be `columns - 1` wide: the reply's `columns - 2`
   rows wrap it again, as they wrap prose.
-- At most 200 data rows are drawn, then `… N more rows not shown` (read from
-  the source, not seen on a screen).
+- At most 200 data rows are drawn, then `… N more rows not shown`, in boxes
+  or as lines (after a rule there).
 - A table inside a list item or a quote is drawn as `hooks/table.ts` `piped()`
   lays it out: as Markdown (`| a | b |` lines, `|---|` under the header, each
   column its widest cell, 3 at least, every cell the header's too as its

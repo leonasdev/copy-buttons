@@ -79,3 +79,6 @@ draws its own text over the reply.
 - A reply holding tables in list items and quotes, and text in other scripts
   (session `1ae9ae8d…`, `dev/samples/11-nested-tables.md` and `12-scripts.md`):
   each table its own buttons; below Hindi, tmux draws the reply a row lower.
+- Lists seven deep and a table of 205 rows (session `4177174e…`,
+  `dev/samples/13-deep-lists.md` and `14-long-table.md`): the table's card
+  over all its rows, `… 5 more rows not shown` included.

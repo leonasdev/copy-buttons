@@ -10,6 +10,7 @@ import { fold, useReader } from '../hooks/transcript'
 import { onScreenPart, placeBlocks, placeOn } from '../hooks/place'
 import { layOut, wrap } from '../hooks/wrap'
 import * as samples from './fixtures/samples'
+import * as deep from './fixtures/deep'
 import * as nested from './fixtures/nested'
 import * as tmuxAgents from './fixtures/tmux-agents'
 
@@ -495,7 +496,7 @@ test('the row is its own region: a quick second click is a second press', async 
   await ui.unmount()
 })
 
-test('the row brightens the item under the pointer, but not one that reads ✓', async ($, on) => {
+test('the row brightens the item under the pointer in the accent colour, but not one that reads ✓', async ($, on) => {
   engine(on)
   on('ui.copy', () => ({ value: { isCopied: true } }))
   const ui = await $.ui.mount(MESSAGE)
@@ -504,6 +505,7 @@ test('the row brightens the item under the pointer, but not one that reads ✓',
 
   await ui.pointer({ type: 'move', x: reply?.from ?? 0, y: 0, in: 'row' })
   expect((await drawnText('⧉ Reply'))?.props.bold).toBe(true)
+  expect((await drawnText('⧉ Reply'))?.props.color).toBe('suggestion')
   expect((await drawnText('⧉ Reply'))?.props.dimColor).toBeUndefined()
   expect((await drawnText('⧉ Reply'))?.props.inverse).toBeUndefined()
   expect((await drawnText('⧉ bash 1'))?.props.dimColor).toBe(true)
@@ -824,10 +826,12 @@ test('tables and code blocks are laid out in reading order, each by its rows', (
 // Every row of a reply as the terminal drew it at each width: tables that
 // fit, narrowed (cells wrapped, words broken) and drawn as lines, wrapped
 // again in the reply's narrower rows; tables in list items and quotes;
-// Hebrew, Devanagari, Cyrillic, Vietnamese and Tangut text. A row of
+// Hebrew, Devanagari, Cyrillic, Vietnamese and Tangut text; lists seven deep
+// and counted past 3999, their markers wrapped on a narrow screen; a table's
+// rows past 200, in boxes and as lines. A row of
 // Devanagari, which tmux draws otherwise, by its consonants.
 const asDrawn = (row: string) => (/[\u0900-\u097f]/.test(row) ? row.replace(/[^\u0915-\u0939]/g, '') : row)
-for (const [name, fixture] of [['the samples', samples], ['a reply with listed code', tmuxAgents], ['nested tables and scripts', nested]] as const) {
+for (const [name, fixture] of [['the samples', samples], ['a reply with listed code', tmuxAgents], ['nested tables and scripts', nested], ['deep lists and a long table', deep]] as const) {
   for (const [columns, screen] of Object.entries(fixture.screens)) {
     test(`${name} lay out as the terminal drew them ${columns} columns wide`, () => {
       expect(layOut(fixture.answer, Number(columns)).rows.map(row => asDrawn(row.trimEnd()))).toEqual(screen.map(asDrawn))

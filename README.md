@@ -105,7 +105,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 ## ⚠️ Known limitations
 
 - The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.312 and 2.1.314; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
-- Code blocks and tables get no buttons of their own in an answer holding a `mermaid` diagram.
+- Code blocks and tables get no buttons of their own in an answer holding a `mermaid` code block: Claude Code draws it as a diagram, which the plugin does not follow. Their buttons are at the end of the answer instead.
 - In tmux, an answer holding Devanagari (Hindi) is drawn a row lower below each line tmux finds too long, so a block's card there looks a row off.
 - In a narrow window a block's or table's button can cover the end of its first row while the pointer is over it.
 - Not yet tested on macOS or native Windows.

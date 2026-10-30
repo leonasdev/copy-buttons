@@ -68,22 +68,38 @@ function inline(tokens: readonly Token[] | undefined): string {
 
 const toLines = (text: string): Line[] => text.split('\n').map(line => ({ text: line }))
 
-// Ordered lists count 1., a., i. by depth, then start over.
-function ordinal(n: number, depth: number): string {
-  const kind = depth % 3
-  if (kind === 1) return String.fromCharCode(96 + (((n - 1) % 26) + 1))
-  if (kind === 2) {
-    const romans: [number, string][] = [[10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']]
-    let rest = n
-    let out = ''
-    for (const [value, numeral] of romans) {
-      while (rest >= value) {
-        out += numeral
-        rest -= value
-      }
-    }
-    return out
+// Ordered lists count 1., a., i. by depth, and 1. deeper still: letters
+// past z run on to aa, ab; a list that starts below 1 counts in numbers, and
+// one that runs past 3999 in numbers where it would count in roman.
+const ROMANS: [number, string][] = [
+  [1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'],
+  [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i'],
+]
+
+function letters(n: number): string {
+  let out = ''
+  for (let rest = n; rest > 0; rest = Math.floor(rest / 26)) {
+    rest--
+    out = String.fromCharCode(97 + (rest % 26)) + out
   }
+  return out
+}
+
+function roman(n: number): string {
+  let rest = n
+  let out = ''
+  for (const [value, numeral] of ROMANS) {
+    while (rest >= value) {
+      out += numeral
+      rest -= value
+    }
+  }
+  return out
+}
+
+function ordinal(n: number, depth: number, first: number, last: number): string {
+  if (depth === 1 && first >= 1) return letters(n)
+  if (depth === 2 && first >= 1 && last <= 3999) return roman(n)
   return String(n)
 }
 
@@ -101,7 +117,7 @@ function list(token: Tokens.List, depth: number): Line[] {
   const lines: Line[] = []
   const start = typeof token.start === 'number' ? token.start : 1
   token.items.forEach((item, i) => {
-    const marker = token.ordered ? `${ordinal(start + i, depth)}.` : '-'
+    const marker = token.ordered ? `${ordinal(start + i, depth, start, start + token.items.length - 1)}.` : '-'
     const lead = `${marker} ${item.task ? `[${item.checked ? 'x' : ' '}] ` : ''}`
     const pad = ' '.repeat(marker.length + 1)
     const body = blocks(item.tokens, depth + 1, true).map(asText)

@@ -50,17 +50,22 @@ const QUOTE_BAR = 2
 
 // A list item on a screen `columns` wide has the room less fourteen for its
 // indent and marker: its indent kept to the room less two, its marker's cell
-// to what is left, two at least (a marker that no longer fits loses its
-// space). Else its line is as drawn.
-function inRoom(line: Line, columns: number): Line {
-  if (line.item === undefined) return line
+// to what is left, two at least. A marker that no longer fits loses its
+// space, then wraps in its cell, its rows past the first (`marker`) beside
+// the item's, at column `at` in `cell` columns. Else its line is as drawn.
+type Shaped = { line: Line; marker: string[]; at: number; cell: number }
+
+function inRoom(line: Line, columns: number): Shaped {
+  const asDrawn = { line, marker: [], at: 0, cell: 0 }
+  if (line.item === undefined) return asDrawn
   const { indent, cell, marker } = line.item
   const room = columns - 14
   const before = Math.max(0, Math.min(indent, room - 2))
   const own = Math.max(2, Math.min(cell, room - before))
-  if (before === indent && own === cell) return line
-  const lead = ' '.repeat(before) + (marker === undefined ? ' '.repeat(own) : marker.padEnd(own))
-  return { ...line, text: lead + line.text.slice(indent + cell), hang: before + own + (line.hang ?? 0) - indent - cell }
+  if (before === indent && own === cell) return asDrawn
+  const [first = '', ...rest] = marker === undefined ? [] : wrapAnsi(marker, own, true)
+  const text = ' '.repeat(before) + first.padEnd(own) + line.text.slice(indent + cell)
+  return { line: { ...line, text, hang: before + own + (line.hang ?? 0) - indent - cell }, marker: rest, at: before, cell: own }
 }
 
 export function layOut(markdown: string, columns: number): Layout {
@@ -68,15 +73,22 @@ export function layOut(markdown: string, columns: number): Layout {
   const layout: Layout = { rows: [], parts: [] }
   const kinds: (Span['kind'] | undefined)[] = []
   for (const drawn of fit(renderLines(markdown), columns)) {
-    const line = drawn.part === 'code' ? { ...drawn, text: untab(drawn.text, drawn.codeAt ?? 0) } : inRoom(drawn, columns)
+    const { line, marker, at, cell } =
+      drawn.part === 'code' ? { line: { ...drawn, text: untab(drawn.text, drawn.codeAt ?? 0) }, marker: [], at: 0, cell: 0 } : inRoom(drawn, columns)
     const hang = line.isQuote === true ? QUOTE_BAR : line.isFlush === true ? 0 : (line.hang ?? 0)
     if (line.part !== undefined && line.isPartStart === true) {
       layout.parts.push({ kind: line.part, start: layout.rows.length, end: layout.rows.length })
     }
-    wrap(line.text.slice(hang), width - hang).forEach((row, i) => {
-      layout.rows.push((i === 0 || line.isQuote === true ? line.text.slice(0, hang) : ' '.repeat(hang)) + row)
-      kinds.push(line.part)
+    const rows = wrap(line.text.slice(hang), width - hang).map(
+      (row, i) => (i === 0 || line.isQuote === true ? line.text.slice(0, hang) : ' '.repeat(hang)) + row,
+    )
+    marker.forEach((mark, k) => {
+      rows[k + 1] = ' '.repeat(at) + mark.padEnd(cell) + (rows[k + 1]?.slice(at + cell) ?? '')
     })
+    for (const row of rows) {
+      layout.rows.push(row)
+      kinds.push(line.part)
+    }
   }
   // A part ends at its last row of its kind before the next part starts.
   layout.parts.forEach((part, n) => {

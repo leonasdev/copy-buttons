@@ -471,7 +471,7 @@ export const register: Register = (on, options) => {
         mark,
         ...drawnButtons.map(({ name, top, item, width }) => (
           <Box key={`button-${name}`} position="absolute" top={top} left={at} {...reveal}>
-            <Client key={name} module="./row.ts" props={{ items: [item], gap: GAP, look: 'accent', ...onCard }} width={width} height={1} />
+            <Client key={name} module="./row.ts" props={{ items: [item], gap: GAP, ...onCard }} width={width} height={1} />
           </Box>
         )),
       ]

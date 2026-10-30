@@ -13,6 +13,11 @@ a removed or renamed setting option, or a changed default, is a major version.
 - Replies in Hebrew, Hindi and other scripts with marks, a wrapped quote, a
   row starting with several spaces and a list in a very narrow window are
   laid out as Claude Code draws them, so their blocks keep their buttons.
+- Ordered lists more than three deep count in numbers, as Claude Code
+  counts them, so a reply holding one keeps its blocks' buttons and its
+  rendered copy reads as drawn; so do lists counted from 0 or past 3999.
+- An action on the closing line lights up under the pointer in the accent
+  colour, as a block's own buttons do, not in the text's.
 - An empty code block no longer leaves a button on the closing line that
   copied nothing, nor takes a number from the blocks named like it.
 
