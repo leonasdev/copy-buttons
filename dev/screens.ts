@@ -1,10 +1,10 @@
-// Claude Code on a real screen, signed out and sending nothing to the model:
-// a conversation is written as a session of its own, which Claude Code
-// resumes in a detached tmux pane, in a home of its own (the first run's
-// questions answered, the folder trusted, the full-screen view on, nothing
-// installed), with this plugin loaded from the folder or with no plugins.
-// Used by dev/capture-fixtures.ts, dev/check-rendering.ts and
-// dev/check-buttons.ts.
+// Claude Code on a real screen, in a detached tmux pane and a home of its own
+// (the first run's questions answered, the folder trusted, the full-screen
+// view on, nothing installed), with this plugin loaded from the folder or
+// with no plugins. A conversation written as a session of its own is resumed
+// signed out, nothing sent to the model (dev/capture-fixtures.ts,
+// dev/check-rendering.ts, dev/check-buttons.ts); or a session is started, to
+// talk to the model with a token passed on (dev/check-live.ts).
 //
 // Needs tmux. Runs the `claude` on PATH, or CLAUDE_BIN.
 
@@ -60,6 +60,9 @@ export type Pane = {
   waitFor: <T>(what: string, ready: (screen: string) => T | undefined) => Promise<T>
   // An SGR mouse report, as the terminal sends one: columns and rows 1-based.
   mouse: (button: number, column: number, row: number, release?: boolean) => void
+  // Text typed, then keys by tmux's names (Enter, Escape, ...).
+  type: (text: string) => void
+  keys: (...names: string[]) => void
   // What the last copy put on the clipboard (OSC 52, into tmux's buffer),
   // and setting it, to tell the next copy from what was there.
   clipboard: () => string
@@ -68,14 +71,20 @@ export type Pane = {
 }
 
 export type Open = {
-  entries: readonly Entry[]
+  // The conversation resumed; else a session of its own is started.
+  entries?: readonly Entry[]
   columns: number
   height: number
   // This plugin loaded from the folder with these options; else no plugins.
   plugin?: Record<string, string>
+  // Variables of this environment passed on (by name, so their values are
+  // in no command line tmux keeps), and arguments for claude.
+  pass?: readonly string[]
+  args?: readonly string[]
 }
 
-export type Home = { open: (open: Open) => Pane }
+// `projects` is the folder the panes' transcripts are written in.
+export type Home = { open: (open: Open) => Pane; projects: string }
 
 // A home and a tmux server of their own, both gone once `use` has run.
 export async function withHome<T>(use: (home: Home) => Promise<T>): Promise<T> {
@@ -88,16 +97,19 @@ export async function withHome<T>(use: (home: Home) => Promise<T>): Promise<T> {
   writeFileSync(join(home, '.claude', 'settings.json'), JSON.stringify({ tui: 'fullscreen' }))
   writeFileSync(join(home, 'tmux.conf'), 'set -g set-clipboard on\n')
   const server = `copy-buttons-${process.pid}`
-  const tmux = (...argv: string[]) => Bun.spawnSync(['tmux', '-L', server, '-f', join(home, 'tmux.conf'), ...argv]).stdout.toString()
+  // The server keeps this environment, for the panes' `pass`.
+  const tmux = (...argv: string[]) => Bun.spawnSync(['tmux', '-L', server, '-f', join(home, 'tmux.conf'), ...argv], { env: process.env }).stdout.toString()
   const env = ['env', '-i', `PATH=${process.env.PATH}`, `HOME=${home}`, 'TERM=xterm-256color', 'DISABLE_AUTOUPDATER=1', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1']
   const quote = (arg: string) => `'${arg.replace(/'/g, `'\\''`)}'`
   let sessions = 0
 
-  const open = ({ entries, columns, height, plugin }: Open): Pane => {
+  const open = ({ entries, columns, height, plugin, pass = [], args = [] }: Open): Pane => {
     const id = `00000000-0000-4000-9000-${String(++sessions).padStart(12, '0')}`
-    writeFileSync(join(projects, `${id}.jsonl`), rowsOf(entries, id, cwd))
+    if (entries !== undefined) writeFileSync(join(projects, `${id}.jsonl`), rowsOf(entries, id, cwd))
+    const resume = entries === undefined ? [] : ['--resume', id]
     const load = plugin === undefined ? [] : ['--plugin-dir', PLUGIN, '--settings', JSON.stringify({ pluginConfigs: { 'copy-buttons@inline': { options: plugin } } })]
-    tmux('new-session', '-d', '-s', id, '-x', String(columns), '-y', String(height), '-c', cwd, [...env, CLAUDE, '--resume', id, ...load].map(quote).join(' '))
+    const passed = pass.map(name => `${name}="$${name}"`)
+    tmux('new-session', '-d', '-s', id, '-x', String(columns), '-y', String(height), '-c', cwd, [...env.map(quote), ...passed, ...[CLAUDE, ...resume, ...load, ...args].map(quote)].join(' '))
     const screen = () => tmux('capture-pane', '-p', '-t', id)
     return {
       screen,
@@ -110,6 +122,8 @@ export async function withHome<T>(use: (home: Home) => Promise<T>): Promise<T> {
         throw new Error(`no ${what} within ${WAIT_MS / 1000}s; the screen:\n${screen()}`)
       },
       mouse: (button, column, row, release = false) => void tmux('send-keys', '-t', id, '-l', `\x1b[<${button};${column};${row}${release ? 'm' : 'M'}`),
+      type: text => void tmux('send-keys', '-t', id, '-l', text),
+      keys: (...names) => void tmux('send-keys', '-t', id, ...names),
       clipboard: () => tmux('show-buffer'),
       setClipboard: text => void tmux('set-buffer', '--', text),
       close: () => void tmux('kill-session', '-t', id),
@@ -117,7 +131,7 @@ export async function withHome<T>(use: (home: Home) => Promise<T>): Promise<T> {
   }
 
   try {
-    return await use({ open })
+    return await use({ open, projects })
   } finally {
     tmux('kill-server')
     rmSync(home, { recursive: true, force: true })
