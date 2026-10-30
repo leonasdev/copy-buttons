@@ -2,5 +2,10 @@
   "name": "copy-buttons",
   "description": "Copy buttons for Claude Code's terminal: copy a reply, a code block or a table with one click",
   "owner": { "name": "leonasdev", "email": "s8952889@gmail.com" },
-  "plugins": [{ "name": "copy-buttons", "source": "./" }]
+  "plugins": [
+    {
+      "name": "copy-buttons",
+      "source": { "source": "github", "repo": "leonasdev/copy-buttons", "ref": "v1.3.0" }
+    }
+  ]
 }

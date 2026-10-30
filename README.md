@@ -110,6 +110,18 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 - In a narrow window a block's or table's button can cover the end of its first row while the pointer is over it.
 - Not yet tested on macOS or native Windows.
 
+## Development
+
+- `claude plugin test .` runs the tests. [docs/manual-testing.md](docs/manual-testing.md) shows how to check the buttons on a real screen, which the tests cannot.
+- `dev/release-check.sh` runs every check a release needs, and changes nothing.
+
+### Releasing
+
+Pushing to `main` reaches no one: the marketplace installs the tag named in `.claude-plugin/marketplace.json`, and only a release moves it.
+
+1. Note each change users will see under `## [Unreleased]` in `CHANGELOG.md`.
+2. Run `dev/release.sh <version>`, the version picked by [Semantic Versioning](https://semver.org) and the rule at the top of the changelog. It dates the entries, sets the version in `plugin.json` and the tag in `marketplace.json`, runs `dev/release-check.sh`, then commits, tags, pushes both together and makes the GitHub release. If a check fails it puts the files back and commits nothing; if `[Unreleased]` is empty it lists the commits since the last release.
+
 ## Credits
 
 Markdown is parsed with [marked](https://github.com/markedjs/marked) v15.0.12 (MIT), bundled in `hooks/vendor/` with its license.
