@@ -22,13 +22,17 @@ export type Reader = {
 const LOCATE_SH = `
 d="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
 f=$(ls -t "$d"/*/"$1".jsonl 2>/dev/null | head -n 1)
-[ -n "$f" ] || f=$(ls -t "$d"/*/*.jsonl 2>/dev/null | head -n 50 | xargs grep -lF "\\"uuid\\":\\"$2\\"" 2>/dev/null | head -n 1)
+[ -n "$f" ] || f=$(ls -t "$d"/*/*.jsonl 2>/dev/null | head -n 50 | while IFS= read -r t; do
+  grep -qF "\\"uuid\\":\\"$2\\"" "$t" 2>/dev/null && { printf '%s' "$t"; break; }
+done)
 [ -n "$f" ] || exit 3
 printf '%s' "$f"
 `
 
 // Each row is printed one row late, and the last only when the bytes read end
-// with it, so a row still being written waits.
+// with it, so a row still being written waits. An assistant row is the
+// model's own, its type `assistant`: an `api-request-blob` row holds the
+// messages of a request again, the model's among them.
 const SCAN_SH = `
 size=$(wc -c < "$1")
 [ "$size" -gt "$2" ] || { echo "O $2"; exit 0; }
@@ -36,7 +40,7 @@ tail -c +"$(($2 + 1))" "$1" | head -c "$(($size - $2))" | LC_ALL=C awk -v start=
   function emit(row) {
     if (index(row, "\\"isSidechain\\":true")) return
     if (index(row, "\\"subtype\\":\\"turn_duration\\"")) { print "D"; return }
-    if (index(row, "\\"role\\":\\"assistant\\"")) {
+    if (index(row, "\\"type\\":\\"assistant\\"") && index(row, "\\"role\\":\\"assistant\\"")) {
       if (index(row, "\\"content\\":[{\\"type\\":\\"tool_use\\"")) { print "U"; return }
       if (index(row, "\\"content\\":[{\\"type\\":\\"text\\"") && match(row, /"uuid":"[^"]+"/)) {
         print "T " substr(row, RSTART + 8, RLENGTH - 9)
@@ -104,7 +108,7 @@ if ($end -ge 0) {
   foreach ($row in [Text.Encoding]::UTF8.GetString($buf, 0, $end + 1).Split([char]10)) {
     if ($row.Contains('"isSidechain":true')) { continue }
     if ($row.Contains('"subtype":"turn_duration"')) { [void]$out.Append("D\`n"); continue }
-    if ($row.Contains('"role":"assistant"')) {
+    if ($row.Contains('"type":"assistant"') -and $row.Contains('"role":"assistant"')) {
       if ($row.Contains('"content":[{"type":"tool_use"')) { [void]$out.Append("U\`n"); continue }
       if ($row.Contains('"content":[{"type":"text"')) {
         $m = [regex]::Match($row, '"uuid":"([^"]+)"')

@@ -112,7 +112,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 
 ## Development
 
-- `claude plugin test .` runs the tests. [docs/manual-testing.md](docs/manual-testing.md) shows how to check the buttons on a real screen, which the tests cannot.
+- `claude plugin test .` runs the tests. `bun test ./dev/check-readers.ts` runs the scripts that read the transcript, which those tests stand in for. [docs/manual-testing.md](docs/manual-testing.md) shows how to check the buttons on a real screen, which the tests cannot.
 - `dev/release-check.sh` runs every check a release needs, and changes nothing.
 
 ### Releasing

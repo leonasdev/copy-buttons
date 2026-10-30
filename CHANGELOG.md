@@ -8,6 +8,14 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- A forked session whose own transcript is not written yet finds its replies
+  on Linux and macOS when the Claude config folder's path holds a space.
+- A request's messages, which Claude Code writes to the transcript again, are
+  no longer read as the model calling a tool, which could have taken an
+  answer's buttons away.
+
 ## [1.4.0] - 2026-10-30
 
 ### Changed
