@@ -77,7 +77,7 @@ Its button is at the end of the answer instead when the plugin cannot follow how
 <details>
 <summary>Selecting a code block with the mouse copies the button too</summary>
 
-While the pointer is over a block its button is on screen, and a selection that takes in the button's row takes in its text. Start the selection from outside the block, or use the button. The same goes for a table.
+While a block's button is on screen (with the pointer over it, or all the time with `always`), a selection that takes in the button's row takes in its text. Start the selection from outside the block, or use the button. The same goes for a table.
 
 </details>
 
@@ -106,7 +106,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 
 - The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.312 and 2.1.314; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
 - Code blocks and tables get no buttons of their own in an answer holding a `mermaid` code block: Claude Code draws it as a diagram, which the plugin does not follow. Their buttons are at the end of the answer instead.
-- In tmux, an answer holding Devanagari (Hindi) is drawn a row lower below each line tmux finds too long, so a block's card there looks a row off.
+- In tmux, an answer holding Devanagari (Hindi) is drawn a row lower below each line tmux finds too long, so a block's bar and grey card there look a row off.
 - In a narrow window a block's or table's button can cover the end of its first row while the pointer is over it.
 - Not yet tested on macOS or native Windows.
 

@@ -1,7 +1,7 @@
 {
   "name": "copy-buttons",
   "version": "1.2.0",
-  "description": "Copy buttons on each final reply's closing line: the reply as markdown or rendered, each code block, and tables as spreadsheet rows",
+  "description": "One-click copy buttons on each code block and table, and at the end of every final answer: the reply as markdown or rendered, code, and tables as markdown, spreadsheet rows or boxed.",
   "author": { "name": "leonasdev", "email": "s8952889@gmail.com" },
   "homepage": "https://github.com/leonasdev/copy-buttons",
   "repository": "https://github.com/leonasdev/copy-buttons",
