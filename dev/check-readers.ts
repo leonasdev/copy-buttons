@@ -1,8 +1,9 @@
 // Runs the transcript readers' own scripts (hooks/readers.ts) on transcripts
 // written to a temporary folder: `claude plugin test` cannot, as the tests
 // there have no process to run and stand in for the scripts' output. The
-// POSIX reader runs on sh and awk; the Windows one where `pwsh` or
-// `powershell.exe` is found, and is skipped otherwise.
+// POSIX reader runs on sh and awk, but on Windows, where the plugin reads
+// with PowerShell; the Windows one where `pwsh` or `powershell.exe` is
+// found, and is skipped otherwise.
 //
 //   bun test ./dev/check-readers.ts
 //
@@ -83,9 +84,8 @@ function transcript(project: string, name: string, text: string, secondsAgo = 0)
 }
 
 type Platform = { name: string; reader: () => Reader; env: () => Record<string, string> }
-const platforms: Platform[] = [
-  { name: 'posix', reader: () => posix, env: () => ({ CLAUDE_CONFIG_DIR: config }) },
-]
+const platforms: Platform[] = []
+if (process.platform !== 'win32') platforms.push({ name: 'posix', reader: () => posix, env: () => ({ CLAUDE_CONFIG_DIR: config }) })
 if (POWERSHELL !== undefined) {
   const shell = [POWERSHELL, '-NoProfile', '-NonInteractive', ...(POWERSHELL === 'powershell.exe' ? ['-ExecutionPolicy', 'Bypass'] : []), '-Command']
   platforms.push({ name: 'windows', reader: () => windows(projects, shell), env: () => ({}) })
