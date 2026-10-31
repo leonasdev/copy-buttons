@@ -10,7 +10,7 @@
 // Not named *.test.ts: `claude plugin test` would take it up, and it does not
 // load there.
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -90,6 +90,12 @@ if (process.platform !== 'win32') platforms.push({ name: 'posix', reader: () => 
 if (POWERSHELL !== undefined) {
   const shell = [POWERSHELL, '-NoProfile', '-NonInteractive', ...(POWERSHELL === 'powershell.exe' ? ['-ExecutionPolicy', 'Bypass'] : []), '-Command']
   platforms.push({ name: 'windows', reader: () => windows(projects, shell), env: () => ({}) })
+  // PowerShell's first start, pwsh's on a fresh runner above all, can take
+  // longer than a test's 5 seconds: it is paid here, untimed, not by the
+  // first test that runs a reader.
+  beforeAll(() => {
+    Bun.spawnSync([...shell, 'exit 0'])
+  }, 120_000)
 } else {
   test.skip('windows: no pwsh or powershell.exe here', () => {})
 }
