@@ -16,7 +16,7 @@ type RowState = { hovered: string | null }
 // this module's, so the engine neither selects nor copies the words under a
 // click, nor a double click's word. Every click is a press, a quick second
 // one too. An item at rest is dim; under the pointer it lights up in bold in
-// the accent colour (a code block's bar is drawn in it too), the colour for a
+// the accent colour, the colour for a
 // terminal that draws no bold, unless its copy just landed: that one reads
 // plain green.
 const Row: ClientModule<RowProps, RowState> = (props, surface) => {

@@ -388,11 +388,9 @@ export const register: Register = (on, options) => {
     // Each block a hover scope over its rows, from the reply's left edge to
     // its buttons' end, drawn under the reply. While the pointer is in one,
     // its buttons show over the reply, and nothing else, so the block never
-    // reads as a button itself; with the pointer on one of them, an accent
-    // bar in the left margin, what a press takes: the buttons and the bar a
-    // hover group of their own, so the engine shows it with no hook run (the
-    // pointer on the bar, a column wide, keeps it). A press flashes the
-    // block's rows, redrawn as drawn, on a card in the theme's selection
+    // reads as a button itself; the engine shows them with no hook run. Where
+    // they sit tells which block they copy, and a press flashes the block's
+    // rows, redrawn as drawn, on a card in the theme's selection
     // colour, pointer or not, so it is told what the press took, as a
     // selection would show it; its buttons stay as long as the ✓ shows.
     // The card ends a column past the widest row, the buttons beside it off
@@ -428,20 +426,12 @@ export const register: Register = (on, options) => {
       const isCopied = drawnButtons.some(button => button.isDone)
       const isFlashed = isCopied && isFlashing
       const isPinned = isCopied || (blockButtons === 'always' && !isOver)
-      const aim = `${scopeOf(block)}:buttons`
       // The card's rows end a column past the widest; buttons from there on
       // are beside it.
       const widest = Math.max(...block.rows.map(row => 2 + widthOf(row.trimEnd())))
       const isBeside = at > widest
       const onCard = isFlashed && !isBeside ? { background: SELECTION } : {}
       return [
-        ...(!isFlashed
-          ? [
-              <Box key={`bar-${key}`} position="absolute" top={from - height} left={0} width={1} height={lines.length} flexDirection="column" display="none" hover={{ scope: aim, display: 'flex' }}>
-                {lines.map((_, i) => <Text key={String(i)} color="suggestion">▎</Text>)}
-              </Box>,
-            ]
-          : []),
         ...(isFlashed
           ? [
               <Box key={`mark-${key}`} position="absolute" top={from - height} left={1} width={isBeside ? widest : block.right - 1} height={lines.length} flexDirection="column" paddingLeft={1} backgroundColor={SELECTION}>
@@ -451,9 +441,7 @@ export const register: Register = (on, options) => {
           : []),
         ...drawnButtons.map(({ name, top, item, width }) => (
           <Box key={`button-${name}`} position="absolute" top={top} left={at} {...(isPinned ? {} : reveal)}>
-            <Box hover={{ scope: aim }}>
-              <Client key={name} module="./row.ts" props={{ items: [item], gap: GAP, ...onCard }} width={width} height={1} />
-            </Box>
+            <Client key={name} module="./row.ts" props={{ items: [item], gap: GAP, ...onCard }} width={width} height={1} />
           </Box>
         )),
       ]

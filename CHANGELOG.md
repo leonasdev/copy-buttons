@@ -8,6 +8,12 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Removed
+
+- The purple bar at a code block's or table's left with the pointer on one of
+  its buttons. Where the buttons sit tells which block they copy, and a click
+  flashes the block it copied.
+
 ## [1.4.2] - 2026-11-03
 
 ### Fixed

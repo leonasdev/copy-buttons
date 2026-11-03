@@ -136,10 +136,9 @@ widths from 30 to 130 (`tests/fixtures/`):
 - A click on a `Client` is the module's own: no selection starts there.
 - A `Client` posts one `ui.message` a frame: a later post in the same frame
   replaces an undelivered one, so a post on the pointer's leave would drop a
-  click just before it. What only lights while the pointer is on a button
-  (the block's bar) is a hover group instead: a Box around the `Client`,
-  given a `hover.scope`, lights its group while the pointer is on the
-  `Client`.
+  click just before it. What only lights while the pointer is somewhere is
+  a hover group instead: a Box around a `Client`, given a `hover.scope`,
+  lights its group while the pointer is on the `Client`.
 - A click does not take the hover down.
 
 ## Side effects met while testing

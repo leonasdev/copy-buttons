@@ -67,11 +67,10 @@ before is left as it is; `git diff tests/fixtures/` shows one drawn otherwise.
 
 ## Things to check after a change
 
-- Hover a code block and a table: the buttons alone, at the top right; the
-  pointer on one shows the purple bar at the block's left, gone when it moves
-  off onto the block; a click flashes it in the selection colour (the theme's
-  `selectionBg`, the same as a drag's) for 500ms, whether the pointer stays or
-  leaves, its buttons staying as long as `✓ copied` shows.
+- Hover a code block and a table: the buttons alone, at the top right, gone
+  when the pointer leaves it; a click flashes it in the selection colour (the
+  theme's `selectionBg`, the same as a drag's) for 500ms, whether the pointer
+  stays or leaves, its buttons staying as long as `✓ copied` shows.
 - With `blockButtons` `always`: the buttons shown with the pointer away, one
   over a row's end in a narrow window on hover only.
 - Click each button; `show-buffer` holds the right text; `✓ copied` shows,

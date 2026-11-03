@@ -765,8 +765,8 @@ test('a hovered block shows its buttons alone, and a press flashes it on its car
   const ui = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
   const props = async (key: string) => (await ui.find({ type: 'Client', key }))?.props.props as RowProps | undefined
   const card = () => ui.find({ type: 'Text', text: 'pwd' })
-  // The bar is there but hidden, shown only with the pointer on a button.
-  expect((await ui.find({ type: 'Box', key: 'bar-part-1' }))?.props.display).toBe('none')
+  // No bar marks the block: its buttons alone.
+  expect(await ui.find({ type: 'Box', key: 'bar-part-1' })).toBeUndefined()
   expect(await card()).toBeUndefined()
   expect((await props('part-1'))?.background).toBeUndefined()
 
@@ -844,28 +844,6 @@ test('a copied block whose button sits beside a short row above wider ones has t
   await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-0' })
   expect((await ui.find({ type: 'Box', key: 'mark-part-0' }))?.props.width).toBe(44)
   expect(((await ui.find({ type: 'Client', key: 'part-0' }))?.props.props as RowProps | undefined)?.background).toBe('selectionBg')
-  await ui.unmount()
-})
-
-// The hover group a block button's Box joins: the Box inside its placed one,
-// as its children are drawn (a found element's own hover is not given).
-const groupOf = async (ui: Mounted, button: string) => {
-  const placed = (await ui.find({ type: 'Box', key: `button-${button}` })) as { children?: unknown[] } | undefined
-  return (placed?.children?.[0] as { hover?: { scope?: string } } | undefined)?.hover?.scope
-}
-
-test('a block\'s buttons share a hover group of their own, its hidden accent bar\'s, gone with a press', async ($, on) => {
-  engine(on)
-  on('ui.copy', () => ({ value: { isCopied: true } }))
-  const ui = await $.ui.mount({ ...HOVERED, props: { text: TABLE_ANSWER, isFirstOfReply: true, onScreen: { first: 0, last: 9, of: 10 } } })
-  expect((await ui.find({ type: 'Box', key: 'bar-part-0' }))?.props.display).toBe('none')
-  expect((await ui.find({ type: 'Text', text: '▎' }))?.props.color).toBe('suggestion')
-  for (const button of ['part-0', 'part-0:1', 'part-0:2']) expect(await groupOf(ui, button)).toBe('msg-1:part-0:buttons')
-  expect(await groupOf(ui, 'part-1')).toBe('msg-1:part-1:buttons')
-
-  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-0:1' })
-  expect(await ui.find({ type: 'Box', key: 'bar-part-0' })).toBeUndefined()
-  expect(await ui.find({ type: 'Box', key: 'mark-part-0' })).toBeDefined()
   await ui.unmount()
 })
 

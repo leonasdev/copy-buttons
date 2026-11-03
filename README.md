@@ -13,7 +13,7 @@ One-click copy buttons for Claude Code: on each code block and table while the p
 - `Reply` copies the Markdown Claude wrote. Click again for the text as shown on screen.
 - A code block's `copy`, at its top right while the pointer is over it, copies just its code.
 - A table's three buttons copy it: `markdown` as Claude wrote it, `sheet` as rows you can paste into Excel or Google Sheets, `boxed` with its borders as drawn.
-- With the pointer on a block's button, a purple bar at its left marks what it copies; after a click the block flashes in the selection colour.
+- After a click on a block's button, the block flashes in the selection colour.
 - A code block or table that cannot have its own buttons (see Known limitations below) gets one at the end of the answer instead, named by its file or language, or `table`. A table's copies its markdown first; click again for spreadsheet rows, and again for it boxed.
 
 ## 📦 Install
@@ -106,7 +106,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 
 - The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.312 to 2.1.317; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
 - Code blocks and tables get no buttons of their own in an answer holding a `mermaid` code block: Claude Code draws it as a diagram, which the plugin does not follow. Their buttons are at the end of the answer instead.
-- In tmux, an answer holding Devanagari (Hindi) is drawn a row lower below each line tmux finds too long, so a block's bar and flash there look a row off.
+- In tmux, an answer holding Devanagari (Hindi) is drawn a row lower below each line tmux finds too long, so a block's buttons and flash there look a row off.
 - In a narrow window a block's or table's button can cover the end of its first row while the pointer is over it.
 - Not yet tested on macOS or native Windows.
 

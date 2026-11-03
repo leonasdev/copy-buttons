@@ -84,6 +84,7 @@ await withHome(async home => {
   point(pane, code)
   const copyAt = await pane.waitFor('a code block\'s button on hover', screen => find(screen, '⧉ copy'))
   check('hovering a code block shows its button on its first row', copyAt.row === code.row, pane)
+  check('and nothing at its left', find(pane.screen(), '▎') === undefined, pane)
   same('its button copies its code', await copy(pane, '⧉ copy'), 'echo hello\nls -la', pane)
   check('and reads ✓ copied', (await pane.waitFor('✓ copied', screen => rowOf(screen, '✓ copied'))) === code.row, pane)
 
