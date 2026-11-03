@@ -636,6 +636,24 @@ test('a code block in a quote counts, and a block ends where the next one starts
   ])
 })
 
+// As the terminal drew it: a quote at the reply's left edge is set apart by a
+// blank row on each side, written right under a paragraph, code or a rule, or
+// with a fence, a list or a heading right under it; in a list item or a quote
+// it touches what it is written against.
+test('a quote at the left edge has a blank row before and after it', () => {
+  const rows = (markdown: string) => layOut(markdown, 80).rows.map(row => row.trimEnd())
+  expect(rows('para\n> quote\n> more')).toEqual(['para', '', '▎ quote', '▎ more'])
+  expect(rows('```\ncode\n```\n> quote')).toEqual(['code', '', '▎ quote'])
+  expect(rows('---\n> quote')).toEqual(['---', '', '▎ quote'])
+  expect(rows('> quote\n```\ncode\n```')).toEqual(['▎ quote', '', 'code'])
+  expect(rows('> quote\n- item')).toEqual(['▎ quote', '', '- item'])
+  expect(rows('> quote\n# head')).toEqual(['▎ quote', '', 'head'])
+  expect(rows('- item\n\n  para\n  > quote')).toEqual(['- item', '', '  para', '▎ quote'])
+  expect(rows('> a\n>\n> b\n> > c')).toEqual(['▎ a', '▎', '▎ b', '▎ ▎ c'])
+  // A code block under it still starts where it is drawn.
+  expect(layOut('para\n> quote\n\n```\ncode\n```', 80).parts).toEqual([{ kind: 'code', start: 4, end: 4 }])
+})
+
 // A code block's button whole or as its icon; a table's three, one under
 // another, or one as its icon.
 const ICON = { width: 2, height: 1 }

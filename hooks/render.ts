@@ -189,9 +189,11 @@ function block(token: Token, depth: number, isInside: boolean): Line[] {
 }
 
 // Blocks in order, one blank line between two where the Markdown has blank
-// lines between them, after a heading, and around a table but one in a list
-// item or a quote (`isInside`); two blocks written on consecutive lines (a
-// paragraph and the code under it) touch.
+// lines between them, after a heading, and around a table or a quote but one
+// in a list item or a quote (`isInside`); two other blocks written on
+// consecutive lines (a paragraph and the code under it) touch.
+const isSetApart = (token: Token | undefined) => token?.type === 'table' || token?.type === 'blockquote'
+
 function blocks(tokens: readonly Token[] | undefined, depth: number, isInside = false): Line[] {
   const lines: Line[] = []
   let previous: Token | undefined
@@ -203,8 +205,8 @@ function blocks(tokens: readonly Token[] | undefined, depth: number, isInside = 
     }
     const drawn = block(token, depth, isInside)
     if (drawn.length === 0) continue
-    const isTable = !isInside && (previous?.type === 'table' || token.type === 'table')
-    const isSpaced = isApart || previous?.type === 'heading' || isTable
+    const isBoxed = !isInside && (isSetApart(previous) || isSetApart(token))
+    const isSpaced = isApart || previous?.type === 'heading' || isBoxed
     if (previous !== undefined && isSpaced) lines.push({ text: '' })
     lines.push(...drawn)
     previous = token

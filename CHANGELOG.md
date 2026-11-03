@@ -8,6 +8,14 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- A code block or table keeps its own buttons in an answer that has a quote
+  written right under a paragraph, a code block or a rule (or a block written
+  right under a quote): the plugin now leaves the blank row Claude Code draws
+  there. Before, every block's button went to the end of the answer. The
+  `rendered` copy has that blank row too.
+
 ## [1.4.1] - 2026-10-30
 
 ### Fixed

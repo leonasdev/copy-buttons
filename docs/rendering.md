@@ -45,7 +45,10 @@ and parts must match) keeps a wrong guess from drawing a button on a wrong row.
   blank line, then a fence).
 - A quote's lines read `▎ ` + the line; an empty quote line is `▎`. A quote at
   the reply's left edge is a box with a bar: its wrapped rows start with `▎ `
-  again and wrap two columns narrower. A quote in a list item is drawn as text,
+  again and wrap two columns narrower. Like a table, it has a blank row before
+  and after it even where the Markdown has none (`para` then `> quote` on the
+  next line; `> quote` then a fence, a list, a heading or `---`); checked on
+  Claude Code 2.1.317. A quote in a list item is drawn as text,
   bar and all: its wrapped rows start at column 0.
 - Tabs in code run to the next multiple of 8 columns, counted from where the
   code starts (past a quote's `▎ `), a wide character counting 2.
