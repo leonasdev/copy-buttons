@@ -1,9 +1,9 @@
 # Each new Claude Code, checked once: every check on Linux, macOS and
 # Windows, and a turn the model answers. A version that fails opens an issue
 # (one a version); one that passes closes the issues of those before it, and
-# updates .github/claude-code-version and README's "Tested with" in a pull
-# request, which also keeps this schedule from being turned off for a
-# quiet repository.
+# commits .github/claude-code-version and README's "Tested with" to main,
+# which also keeps this schedule from being turned off for a quiet
+# repository.
 name: Claude Code watch
 
 on:
@@ -88,7 +88,6 @@ jobs:
       actions: read
       contents: write
       issues: write
-      pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ needs.detect.outputs.version }}
@@ -123,26 +122,20 @@ jobs:
               gh issue close "$number" --comment "Claude Code $VERSION passes every check: $RUN"
             done
 
-      # One pull request, its branch moved on to each newer version that
-      # passes. Pull requests made with this token start no workflow: the
-      # checks above are this version's.
+      # Committed to main as it is now, not as this run checked it out. A
+      # push made with this token starts no workflow: the checks above are
+      # this version's.
       - name: Check with this version from now on
         if: needs.checks.result == 'success'
         run: |
+          git fetch --depth=1 origin main
+          git checkout -B main FETCH_HEAD
           pinned=$(cat .github/claude-code-version)
           newest=$(printf '%s\n%s\n' "$pinned" "$VERSION" | sort -V | tail -n 1)
           if [ "$VERSION" = "$pinned" ] || [ "$newest" != "$VERSION" ]; then echo "already at $pinned"; exit 0; fi
           echo "$VERSION" > .github/claude-code-version
           sed -E -i "s/(Tested with Claude Code [0-9]+\.[0-9]+\.[0-9]+) to [0-9]+\.[0-9]+\.[0-9]+/\1 to $VERSION/" README.md
-          branch=claude-code-version
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git switch -c "$branch"
-          git commit -am "ci: check with Claude Code $VERSION"
-          git push --force origin "$branch"
-          body=$(printf 'Claude Code %s passes every check: %s\n\nMerging makes CI check with it, and README say it was tested with it.\n' "$VERSION" "$RUN")
-          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')" ]; then
-            gh pr edit "$branch" --title "ci: check with Claude Code $VERSION" --body "$body"
-          else
-            gh pr create --head "$branch" --title "ci: check with Claude Code $VERSION" --body "$body"
-          fi
+          git commit -am "ci: check with Claude Code $VERSION" -m "Claude Code $VERSION passes every check: $RUN"
+          git push origin main
