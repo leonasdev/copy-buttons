@@ -1,5 +1,5 @@
 // `dev/samples/01-10` answered as one reply, two blank lines between them,
-// and its rows as Claude Code 2.1.314 drew them at each width: read from tmux, from the reply's bullet to the
+// and its rows as Claude Code 2.1.322 drew them at each width: read from tmux, from the reply's bullet to the
 // last row before the blank one above the closing line, the reply's two
 // columns of indent taken off and spaces at the end trimmed (see
 // docs/manual-testing.md).
@@ -1657,7 +1657,7 @@ export const screens: Record<number, string[]> = {
     "",
     "Wide: the quick brown fox jumps over the",
     "lazy",
-    "dog",
+    "  dog",
     "Columns: 中文內容比較長的一格",
     "Here: ✅ done",
     "And: 👨‍👩‍👧 family",
@@ -1923,7 +1923,7 @@ export const screens: Record<number, string[]> = {
     "└───────────┴────────────────────┘",
     "",
     "Wide: the quick brown fox jumps over the",
-    "lazy dog",
+    "  lazy dog",
     "Columns: 中文內容比較長的一格",
     "Here: ✅ done",
     "And: 👨‍👩‍👧 family",
@@ -2196,7 +2196,7 @@ export const screens: Record<number, string[]> = {
     "└──────────┴───────────────────┘",
     "",
     "Wide: the quick brown fox jumps",
-    "over the lazy dog",
+    "  over the lazy dog",
     "Columns: 中文內容比較長的一格",
     "Here: ✅ done",
     "And: 👨‍👩‍👧 family",
@@ -2474,7 +2474,7 @@ export const screens: Record<number, string[]> = {
     "└─────────┴──────────────────┘",
     "",
     "Wide: the quick brown fox jumps",
-    "over the lazy dog",
+    "  over the lazy dog",
     "Columns: 中文內容比較長的一格",
     "Here: ✅ done",
     "And: 👨‍👩‍👧 family",
@@ -2759,7 +2759,7 @@ export const screens: Record<number, string[]> = {
     "└───────┴────────────────┘",
     "",
     "Wide: the quick brown fox",
-    "jumps over the lazy dog",
+    "  jumps over the lazy dog",
     "Columns:",
     "中文內容比較長的一格",
     "Here: ✅ done",
@@ -3059,8 +3059,8 @@ export const screens: Record<number, string[]> = {
     "└─────┴───────────┘",
     "",
     "Wide: the quick brown",
-    "fox jumps over the",
-    "lazy dog",
+    "  fox jumps over the",
+    "  lazy dog",
     "Columns:",
     "中文內容比較長的一格",
     "Here: ✅ done",

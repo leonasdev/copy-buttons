@@ -87,8 +87,10 @@ export function piped(grid: Grid): string[] {
 
 // The table as lines, for each row its cells as `Header: value`, a long value
 // wrapped (its first row past the header, the rest the screen's width less
-// three), rows apart by a rule; an empty cell under no header left out. Made
-// for the screen's full width: the reply's narrower rows wrap them again.
+// three, each indented two, as from Claude Code 2.1.318), rows apart by a
+// rule; an empty cell under no header left out. Made for the screen's full
+// width: the reply's narrower rows wrap them again, a row's end carried over
+// without the indent.
 function asLines(grid: Grid, rows: string[][], hidden: number, columns: number): string[] {
   const headers = rows.length === 0 ? [] : grid.header.map(text => text.trim())
   const rule = '─'.repeat(Math.min(columns - 1, 40))
@@ -102,7 +104,7 @@ function asLines(grid: Grid, rows: string[][], hidden: number, columns: number):
       const first = cellRows(value, Math.max(header === '' ? columns - 1 : columns - widthOf(header) - 3, 10), false)
       const wrapped = first.length <= 1 ? first : [first[0] ?? '', ...cellRows(first.slice(1).map(row => row.trim()).join(' '), columns - 3, false)]
       own.push(header === '' ? (wrapped[0] ?? '') : `${header}: ${wrapped[0] ?? ''}`)
-      own.push(...wrapped.slice(1).filter(row => row.trim() !== ''))
+      own.push(...wrapped.slice(1).filter(row => row.trim() !== '').map(row => `  ${row}`))
     })
     if (own.length === 0) continue
     if (lines.length > 0) lines.push(rule)

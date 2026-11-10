@@ -918,7 +918,7 @@ test('a table too wide for the screen is one part, narrowed or as lines', () => 
   expect(rowsOf(46)).toEqual([
     'Wide: the quick brown fox jumps over the',
     'lazy',
-    'dog',
+    '  dog',
     'Columns: 中文內容比較長的一格',
     'Here: ✅ done',
     'And: 👨‍👩‍👧 family',
