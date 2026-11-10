@@ -8,6 +8,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-10
+
 ### Fixed
 
 - With Claude Code 2.1.318 or later, a code block or table keeps its own
@@ -116,7 +118,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 - Tables copy as spreadsheet rows, or as drawn.
 - Settings: `icon`, `replyFormat`, `copiedNotice`.
 
-[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/leonasdev/copy-buttons/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/leonasdev/copy-buttons/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/leonasdev/copy-buttons/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/leonasdev/copy-buttons/compare/v1.4.0...v1.4.1
