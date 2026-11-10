@@ -8,6 +8,15 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- With Claude Code 2.1.318 or later, a code block or table keeps its own
+  buttons in an answer holding a table too wide for the screen, which Claude
+  Code draws as `Header: value` lines: the plugin now indents a long value's
+  later rows two, as Claude Code does. Before, the answer could come out a
+  row off from what the terminal drew, and every block's button went to the
+  end of the answer.
+
 ## [1.5.0] - 2026-11-03
 
 ### Removed

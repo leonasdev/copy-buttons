@@ -20,6 +20,7 @@ The tmux ones resume sessions of their own, signed out: nothing is sent to the m
 `.github/workflows/`:
 
 - `ci.yml` runs the checks on each pull request and push to `main`, with the Claude Code in `.github/claude-code-version`, so a new Claude Code turns no pull request red; on macOS and Windows too for a release's tag.
+- `release.yml`, run by hand on `main`, releases a version: see [Releasing](#releasing).
 - `claude-code-watch.yml` looks for a new Claude Code every six hours and checks it once, on all three and live (with the `CLAUDE_CODE_OAUTH_TOKEN` secret). One that fails opens an issue; one that passes closes those of the versions before it, and commits `.github/claude-code-version` and README's "Tested with" to `main`.
 
 ## Releasing
@@ -28,3 +29,5 @@ Pushing to `main` reaches no one: the marketplace installs the tag named in `.cl
 
 1. Note each change users will see under `## [Unreleased]` in `CHANGELOG.md`.
 2. Run `dev/release.sh <version>`, the version picked by [Semantic Versioning](https://semver.org) and the rule at the top of the changelog. It dates the entries, sets the version in `plugin.json` and the tag in `marketplace.json`, runs `dev/release-check.sh`, then commits, tags, pushes both together and makes the GitHub release. If a check fails it puts the files back and commits nothing; if `[Unreleased]` is empty it lists the commits since the last release.
+
+   Or, without a machine set up for it, run the **Release** workflow from the Actions tab on `main`, with the version. It runs every check on Linux, macOS and Windows, then `dev/release.sh` with the workflow's token; the release commit is `github-actions[bot]`'s.
