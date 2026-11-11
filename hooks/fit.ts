@@ -128,3 +128,21 @@ export function layoutRow(
   const shown = pages[Math.min(Math.max(0, page), pages.length - 1)] ?? []
   return { isAbove: true, items: shown, pages: pages.length }
 }
+
+// Where a copy's notice sits on its row, by the columns from the screen's
+// right to the notice's end: its first letter over the pressed action's icon
+// (`over` columns from the screen's right), held within the screen and off the
+// row's first `min` columns. The first of the notice's `widths`, longest
+// first, that fits there; none where none does.
+export function placeNotice(
+  widths: readonly number[],
+  over: number,
+  min: number,
+  columns: number,
+): { choice: number; right: number } | undefined {
+  for (const [choice, width] of widths.entries()) {
+    const most = columns - min - width
+    if (most >= 0) return { choice, right: Math.min(Math.max(0, over - width), most) }
+  }
+  return undefined
+}

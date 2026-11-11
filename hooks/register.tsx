@@ -3,7 +3,7 @@ import type { EngineInterface, Register, RenderSurface } from 'claude-code'
 
 import type { Copied, Format } from '../types'
 import { renderReply } from './render'
-import { GAP, labelOf, layoutRow, numbered, widthOfItem } from './fit'
+import { GAP, labelOf, layoutRow, numbered, placeNotice, widthOfItem } from './fit'
 import type { RowItem, RowPress } from './row'
 import type { Action } from './fit'
 import { copyables } from './blocks'
@@ -352,7 +352,7 @@ export const register: Register = (on, options) => {
 
     // Whole labels beside the closing line's own text if they fit; else on the
     // blank row above it, which has the reply's indent of room to spare, whole,
-    // then cut short, then paged. A copy above is told by its ✓ alone.
+    // then cut short, then paged.
     const { isAbove, items } = layoutRow(onRow, columns - ROW_RIGHT - CLOSING_LINE, columns - ROW_RIGHT - 2, page)
     const turnPage = (by: number) =>
       update($, pages, old => ({ ...old, [e.requestId]: Math.max(0, (old[e.requestId] ?? 0) + by) }))
@@ -375,10 +375,13 @@ export const register: Register = (on, options) => {
     const rowWidth = Math.max(0, column - GAP)
     const rightOf = items.map((_, i) => widths.slice(i + 1).reduce((sum, w) => sum + w + GAP, 0))
     const doneAt = items.findIndex(item => item.kind === 'action' && done?.id === `${e.requestId}:${item.action.key}`)
-    // Above the pressed action, which already reads ✓: for a block how many
+    // By the pressed action, which already reads ✓: for a block how many
     // lines it took; for the reply or a table the format it took and what
-    // another press takes. A label too long to start over its action ends at
-    // the screen's edge.
+    // another press takes. It shows in the row the actions leave free: the
+    // blank one above them, or, with them there, the closing line's past its
+    // own text. A notice too long to start over its action ends at the
+    // screen's edge; one too long for its row drops what another press takes,
+    // then shows not at all, the ✓ telling the copy alone.
     const pressed = items[doneAt]
     const pressedAction = pressed?.kind === 'action' ? pressed.action : undefined
     const label =
@@ -386,7 +389,16 @@ export const register: Register = (on, options) => {
         ? `copied ${(pressedAction?.size ?? linesOf)(pressedAction?.text ?? '')}`
         : `copied as ${done.format}`
     const hint = done?.other === undefined ? '' : hintFor(done.other)
-    const labelWidth = widthOf(label + hint)
+    const notice =
+      doneAt < 0
+        ? undefined
+        : placeNotice(
+            [widthOf(label + hint), widthOf(label)],
+            ROW_RIGHT + (rightOf[doneAt] ?? 0) + (widths[doneAt] ?? 0),
+            isAbove ? CLOSING_LINE : 0,
+            columns,
+          )
+    const noticeHint = notice?.choice === 0 ? hint : ''
 
     // Each block a hover scope over its rows, from the reply's left edge to
     // its buttons' end, drawn under the reply. While the pointer is in one,
@@ -454,7 +466,8 @@ export const register: Register = (on, options) => {
     // their own: they sit at the right end of the turn's closing line
     // (`✻ Cooked for …`), which the engine draws two rows below the reply,
     // and `copied 5 lines` shows in the blank row above the one just pressed, its
-    // first letter over that action's ✓. The blocks' scopes sit before the
+    // first letter over that action's ✓ (in the closing line's, under it, where
+    // the actions take the blank row). The blocks' scopes sit before the
     // reply, their marks after it.
     return (
       <Box flexDirection="column">
@@ -466,16 +479,10 @@ export const register: Register = (on, options) => {
         {drawn}
         <Box height={0} width="100%" position="relative">
           {marks}
-          {!isAbove && doneAt >= 0 && (
-            <Box
-              position="absolute"
-              top={0}
-              right={Math.max(0, ROW_RIGHT + (rightOf[doneAt] ?? 0) + (widths[doneAt] ?? 0) - labelWidth)}
-              width={labelWidth}
-              flexShrink={0}
-            >
+          {notice !== undefined && (
+            <Box position="absolute" top={isAbove ? 1 : 0} right={notice.right} width={widthOf(label + noticeHint)} flexShrink={0}>
               <Text color="success">{label}</Text>
-              {hint !== '' && <Text dimColor>{hint}</Text>}
+              {noticeHint !== '' && <Text dimColor>{noticeHint}</Text>}
             </Box>
           )}
           <Box position="absolute" top={isAbove ? 0 : 1} right={ROW_RIGHT} flexDirection="row">

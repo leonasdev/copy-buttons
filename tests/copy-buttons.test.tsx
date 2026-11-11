@@ -1,9 +1,10 @@
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 
 import { codeBlocks, copyables, readInfo } from '../hooks/blocks'
 import { clean } from '../hooks/clean'
-import { abbreviate, labelOf, layoutRow } from '../hooks/fit'
+import { abbreviate, labelOf, layoutRow, placeNotice } from '../hooks/fit'
 import { powershell, windows } from '../hooks/readers'
 import { widthOf } from '../hooks/width'
 import { renderReply } from '../hooks/render'
@@ -465,6 +466,59 @@ test('the row stays beside, then moves above, then cuts labels, then pages', () 
   expect(labels(layoutRow(ROW, 0, 34, 1))).toEqual(['‹ back', 'py', 'js'])
   // A page past the last shows the last.
   expect(labels(layoutRow(ROW, 0, 34, 9))).toEqual(['‹ back', 'py', 'js'])
+})
+
+test('a notice starts over its action, held on screen and off the closing line\'s text', () => {
+  // `copied as markdown · click again for rendered` 45, `copied as markdown` 18.
+  const widths = [45, 18]
+  // Over the row's rightmost action, it ends at the screen's edge.
+  expect(placeNotice(widths, 9, 0, 100)).toEqual({ choice: 0, right: 0 })
+  // Over one further left, its first letter is over that action's.
+  expect(placeNotice(widths, 60, 0, 100)).toEqual({ choice: 0, right: 15 })
+  // Past the closing line's 48 columns only 34 are left: the short notice.
+  expect(placeNotice(widths, 9, 48, 82)).toEqual({ choice: 1, right: 0 })
+  // Kept off the closing line's text where its action is further left.
+  expect(placeNotice(widths, 40, 48, 82)).toEqual({ choice: 1, right: 16 })
+  // None where even the short one leaves no room.
+  expect(placeNotice(widths, 9, 48, 60)).toBeUndefined()
+  // No viewport: as wide as it needs.
+  expect(placeNotice(widths, 9, 48, Infinity)).toEqual({ choice: 0, right: 0 })
+})
+
+// The reply's notice once Reply is pressed in a terminal this wide: what was
+// copied, and what another press takes.
+async function noticeAt($: Parameters<TestBody>[0], on: On, columns: number, text = ANSWER) {
+  engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const ui = await $.ui.mount({ ...MESSAGE, viewport: { columns, rows: 40 }, props: { text, isFirstOfReply: true } })
+  await click(ui, 'copy-reply')
+  expect(await item(ui, 'copy-reply')).toMatchObject({ text: '✓ Reply' })
+  const said = [
+    (await ui.find({ type: 'Text', text: 'copied as markdown' })) !== undefined,
+    (await ui.find({ type: 'Text', text: ' · click again for rendered' })) !== undefined,
+  ]
+  await ui.unmount()
+  return said
+}
+
+// With the row above, the notice shows in the closing line past its 48
+// columns. Five bash blocks make the row 57 columns (Reply 7, bash 1 to 5 8
+// each, five gaps): beside the closing line from 107 columns, so at 100 it is
+// above, and 52 hold the whole notice.
+const FIVE = Array.from({ length: 5 }, (_, i) => `\`\`\`bash\necho ${i}\n\`\`\``).join('\n\n')
+test('with the row above, the notice shows whole in the closing line where it fits', async ($, on) => {
+  expect(await noticeAt($, on, 100, FIVE)).toEqual([true, true])
+})
+
+// ANSWER's row is 33 columns (Reply 7, bash 1 8, bash 2 8, ts 4, three gaps):
+// beside the closing line from 83 columns.
+
+test('with the row above, a closing line too narrow drops what another press takes', async ($, on) => {
+  expect(await noticeAt($, on, 82)).toEqual([true, false])
+})
+
+test('with the row above, a closing line with no room leaves the ✓ alone', async ($, on) => {
+  expect(await noticeAt($, on, 60)).toEqual([false, false])
 })
 
 test('a narrow terminal pages the row above the closing line', async ($, on) => {
