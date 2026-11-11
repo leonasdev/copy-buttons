@@ -50,6 +50,23 @@ and parts must match) keeps a wrong guess from drawing a button on a wrong row.
   next line; `> quote` then a fence, a list, a heading or `---`); checked on
   Claude Code 2.1.317. A quote in a list item is drawn as text,
   bar and all: its wrapped rows start at column 0.
+- A fence whose info is not a language Claude Code's highlighter knows (its
+  `supportsLanguage`, compared in lower case: highlight.js's ids and aliases,
+  `hooks/languages.ts`) has the info, as written, on a row of its own above
+  the code, part of the block: `ts:src/app.ts`, `ts src/app.ts`,
+  `python title="main.py"`, `foolang`, `vue`. `ts`, `TS`, `tsx`, `text` have
+  none. A grammar a plugin adds is known to Claude Code but not to the list,
+  and syntax highlighting turned off draws the row for every language; the
+  guard keeps the buttons on the closing line then. Checked on Claude Code
+  2.1.317 and 2.1.322.
+- The reply's lists, quotes and tables are drawn each on its own and the
+  blocks between them as one text, its blank rows at either end trimmed. So
+  a code block drawn as a blank row (empty, no info row) is drawn as nothing,
+  the blank rows around it too, next to a list, a quote or a table or at the
+  reply's start or end; between two blocks of the same text (two paragraphs,
+  a heading and a paragraph, a rule) it is a blank row with one on each side.
+  A quote's blocks are trimmed so too. In a list item such a block is always
+  nothing, the blank rows around it kept. Checked on Claude Code 2.1.322.
 - Tabs in code run to the next multiple of 8 columns, counted from where the
   code starts (past a quote's `▎ `), a wide character counting 2.
 - `mermaid` fences are drawn as diagrams, not as code. The layout does not

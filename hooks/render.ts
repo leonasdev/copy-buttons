@@ -1,6 +1,7 @@
 import { Lexer, Tokenizer } from './vendor/marked.js'
 import type { Token, Tokens } from './vendor/marked.js'
 
+import { isHighlighted } from './languages'
 import { boxed, piped } from './table'
 import type { Grid } from './table'
 
@@ -15,9 +16,11 @@ import type { Grid } from './table'
 // a code line's code starts (past a quote's `▎ `). `isQuote` marks a quote's
 // line, its wrapped rows starting with its bar again. A table drawn in boxes
 // is one line holding its cells (`grid`), drawn whole or fitted to the
-// screen's width. A list item's line names the item (`item`): the columns
-// before its marker, its marker's cell (the marker and a space) and, on its
-// first line, the marker, which a narrow screen draws in less room.
+// screen's width. An empty code block the terminal draws as nothing is one
+// line too, `isGone`, taking no row: its part is still there to count. A
+// list item's line names the item (`item`): the columns before its marker,
+// its marker's cell (the marker and a space) and, on its first line, the
+// marker, which a narrow screen draws in less room.
 export type Item = { indent: number; cell: number; marker?: string }
 export type Line = {
   text: string
@@ -27,6 +30,7 @@ export type Line = {
   isPartStart?: true
   codeAt?: number
   isQuote?: true
+  isGone?: true
   grid?: Grid
   item?: Item
 }
@@ -120,7 +124,7 @@ function list(token: Tokens.List, depth: number): Line[] {
     const marker = token.ordered ? `${ordinal(start + i, depth, start, start + token.items.length - 1)}.` : '-'
     const lead = `${marker} ${item.task ? `[${item.checked ? 'x' : ' '}] ` : ''}`
     const pad = ' '.repeat(marker.length + 1)
-    const body = blocks(item.tokens, depth + 1, true).map(asText)
+    const body = blocks(item.tokens, depth + 1, true, true).map(asText)
     // A blank line before an item after one that ends in a blank line, a
     // heading or a table.
     if (i > 0 && endsApart(token.items[i - 1])) lines.push({ text: '' })
@@ -158,6 +162,13 @@ function table(token: Tokens.Table, isInside: boolean): Line[] {
   return [{ text: '', part: 'table', isPartStart: true, grid }]
 }
 
+// A fence whose info the highlighter does not know has the info on a row of
+// its own above the code, as written (`ts:src/app.ts`).
+function infoRow(token: Tokens.Code): string[] {
+  const info = token.lang ?? ''
+  return info !== '' && !isHighlighted(info) ? [info] : []
+}
+
 function block(token: Token, depth: number, isInside: boolean): Line[] {
   switch (token.type) {
     case 'heading':
@@ -166,7 +177,7 @@ function block(token: Token, depth: number, isInside: boolean): Line[] {
     case 'text':
       return toLines('tokens' in token && token.tokens !== undefined ? inline(token.tokens) : token.text)
     case 'code':
-      return asPart(token.text.split('\n'), 'code', { isFlush: true })
+      return asPart([...infoRow(token as Tokens.Code), ...token.text.split('\n')], 'code', { isFlush: true })
     case 'hr':
       return [{ text: '---' }]
     case 'blockquote':
@@ -194,8 +205,40 @@ function block(token: Token, depth: number, isInside: boolean): Line[] {
 // consecutive lines (a paragraph and the code under it) touch.
 const isSetApart = (token: Token | undefined) => token?.type === 'table' || token?.type === 'blockquote'
 
-function blocks(tokens: readonly Token[] | undefined, depth: number, isInside = false): Line[] {
+// A code block drawn as a blank row: nothing in it and no info row above.
+const isBlank = (token: Token) => token.type === 'code' && token.text === '' && infoRow(token as Tokens.Code).length === 0
+
+// The terminal draws the reply's lists, quotes and tables each on its own,
+// and the blocks between them as one text, its blank rows at either end
+// trimmed: a blank code block there is drawn as nothing, nor the blank rows
+// around it (`- item`, then an empty fence, then text). Within the text, as
+// between two paragraphs, it is a blank row. A quote's blocks are trimmed
+// so too; a list item's blank code blocks are all drawn as nothing, the
+// blank rows around them kept.
+const isOwnDrawing = (token: Token) => token.type === 'list' || token.type === 'blockquote' || token.type === 'table'
+
+function gone(tokens: readonly Token[]): Set<Token> {
+  const out = new Set<Token>()
+  let run: Token[] = []
+  const trim = () => {
+    const solid = run.filter(token => token.type !== 'space')
+    let first = 0
+    while (first < solid.length && isBlank(solid[first] as Token)) out.add(solid[first++] as Token)
+    for (let last = solid.length - 1; last >= first && isBlank(solid[last] as Token); last--) out.add(solid[last] as Token)
+    run = []
+  }
+  for (const token of tokens) {
+    if (isOwnDrawing(token)) trim()
+    else run.push(token)
+  }
+  trim()
+  return out
+}
+
+function blocks(tokens: readonly Token[] | undefined, depth: number, isInside = false, isItem = false): Line[] {
   const lines: Line[] = []
+  const isGone = isItem ? new Set((tokens ?? []).filter(isBlank)) : gone(tokens ?? [])
+  const goneLine: Line = { text: '', part: 'code', isPartStart: true, isGone: true }
   let previous: Token | undefined
   let isApart = false
   for (const token of tokens ?? []) {
@@ -203,7 +246,11 @@ function blocks(tokens: readonly Token[] | undefined, depth: number, isInside = 
       isApart = true
       continue
     }
-    const drawn = block(token, depth, isInside)
+    if (isGone.has(token) && !isItem) {
+      lines.push(goneLine)
+      continue
+    }
+    const drawn = isGone.has(token) ? [goneLine] : block(token, depth, isInside)
     if (drawn.length === 0) continue
     const isBoxed = !isInside && (isSetApart(previous) || isSetApart(token))
     const isSpaced = isApart || previous?.type === 'heading' || isBoxed
@@ -241,7 +288,7 @@ export function tsvOf(token: Tokens.Table): string {
 export function renderReply(markdown: string): string {
   const tokens = lex(markdown)
   return blocks(tokens, 0)
-    .flatMap(line => (line.grid === undefined ? [line.text] : boxed(line.grid)))
+    .flatMap(line => (line.isGone === true ? [] : line.grid === undefined ? [line.text] : boxed(line.grid)))
     .map(text => text.replace(/\s+$/, ''))
     .join('\n')
 }

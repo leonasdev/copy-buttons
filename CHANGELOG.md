@@ -8,6 +8,18 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- A code block or table keeps its own buttons in an answer with a fence that
+  names a file (`ts:src/app.ts`, `python title="main.py"`) or a language the
+  highlighter does not know: the plugin now counts the row Claude Code draws
+  the fence's info on, above the code. The `rendered` copy has that row too.
+- A code block or table keeps its own buttons in an answer with an empty code
+  block next to a list, a quote, a table, the answer's start or its end, or
+  in a list item: Claude Code draws it as nothing there, and the plugin now
+  does too. Before, either case sent every block's button to the end of the
+  answer.
+
 ## [1.5.1] - 2026-11-10
 
 ### Fixed

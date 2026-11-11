@@ -40,7 +40,8 @@ const fit = (lines: readonly Line[], columns: number): Line[] =>
 
 // The reply's rows on a screen `columns` wide, past its bullet's two columns,
 // and its code blocks and tables in reading order, each by its first and
-// last row. The rows are trusted only while their count is the engine's.
+// last row (a block drawn as nothing ends a row before it starts). The rows
+// are trusted only while their count is the engine's.
 export type Span = { kind: 'code' | 'table'; start: number; end: number }
 export type Layout = { rows: string[]; parts: Span[] }
 
@@ -73,6 +74,11 @@ export function layOut(markdown: string, columns: number): Layout {
   const layout: Layout = { rows: [], parts: [] }
   const kinds: (Span['kind'] | undefined)[] = []
   for (const drawn of fit(renderLines(markdown), columns)) {
+    // A block drawn as nothing: a part of no rows, where it would start.
+    if (drawn.isGone === true) {
+      layout.parts.push({ kind: 'code', start: layout.rows.length, end: layout.rows.length - 1 })
+      continue
+    }
     const { line, marker, at, cell } =
       drawn.part === 'code' ? { line: { ...drawn, text: untab(drawn.text, drawn.codeAt ?? 0) }, marker: [], at: 0, cell: 0 } : inRoom(drawn, columns)
     const hang = line.isQuote === true ? QUOTE_BAR : line.isFlush === true ? 0 : (line.hang ?? 0)
@@ -90,10 +96,11 @@ export function layOut(markdown: string, columns: number): Layout {
       kinds.push(line.part)
     }
   }
-  // A part ends at its last row of its kind before the next part starts.
+  // A part ends at its last row of its kind before the next part starts; one
+  // of no rows stays so.
   layout.parts.forEach((part, n) => {
     const next = layout.parts[n + 1]?.start ?? layout.rows.length
-    while (part.end + 1 < next && kinds[part.end + 1] === part.kind) part.end++
+    while (part.end >= part.start && part.end + 1 < next && kinds[part.end + 1] === part.kind) part.end++
   })
   return layout
 }

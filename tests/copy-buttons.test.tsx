@@ -654,6 +654,61 @@ test('a quote at the left edge has a blank row before and after it', () => {
   expect(layOut('para\n> quote\n\n```\ncode\n```', 80).parts).toEqual([{ kind: 'code', start: 4, end: 4 }])
 })
 
+// As Claude Code 2.1.322 drew it: a fence's info the highlighter does not
+// know, in any case, is drawn as written on the block's first row.
+test('a fence naming no language the highlighter knows has its info on a row above the code', () => {
+  const rows = (info: string) => layOut(`A\n\n\`\`\`${info}\nx = 1\n\`\`\`\n\nB`, 80).rows.map(row => row.trimEnd())
+  for (const info of ['ts:src/app.ts', 'ts src/app.ts', 'python title="main.py"', 'foolang', 'vue', 'ts {1,3}']) {
+    expect(rows(info)).toEqual(['A', '', info, 'x = 1', '', 'B'])
+  }
+  for (const info of ['ts', 'TS', 'tsx', 'text', 'console', '']) expect(rows(info)).toEqual(['A', '', 'x = 1', '', 'B'])
+  // The row is the block's, in a list item and a quote too.
+  expect(layOut('A\n\n```ts:src/app.ts\nx\n```', 80).parts).toEqual([{ kind: 'code', start: 2, end: 3 }])
+  expect(layOut('1. Do:\n\n   ```ts:a.ts\n   x\n   ```', 80).rows).toEqual(['1. Do:', '', 'ts:a.ts', 'x'])
+  expect(layOut('> ```ts:a.ts\n> x\n> ```', 80).rows).toEqual(['▎ ts:a.ts', '▎ x'])
+  // Nothing in it, the info row is drawn alone.
+  expect(rows('foolang').length).toBe(6)
+  expect(layOut('- a\n\n```foolang\n```\n\nB', 80).rows.map(row => row.trimEnd())).toEqual(['- a', '', 'foolang', '', '', 'B'])
+  expect(renderReply('```ts:src/app.ts\nx\n```')).toBe('ts:src/app.ts\nx')
+})
+
+// As Claude Code 2.1.322 drew it: lists, quotes and tables are drawn each on
+// its own and the blocks between them as one text, its blank rows at either
+// end trimmed, so a blank code block there is drawn as nothing. Between two
+// paragraphs it is a blank row; in a list item, always nothing.
+test('an empty code block next to a list, a quote, a table or the reply\'s edge is drawn as nothing', () => {
+  const E = '```bash\n```'
+  const T = '| a |\n|---|\n| 1 |'
+  const rows = (markdown: string) => layOut(markdown, 80).rows.map(row => row.trimEnd())
+  expect(rows(`- a\n\n${E}\n\nB`)).toEqual(['- a', '', 'B'])
+  expect(rows(`- a\n- b\n\n${E}\n\n${E}\n\nB`)).toEqual(['- a', '- b', '', 'B'])
+  expect(rows(`> q\n\n${E}\n\nB`)).toEqual(['▎ q', '', 'B'])
+  expect(rows(`${T}\n\n${E}\n\n${T}`)).toHaveLength(11)
+  expect(rows(`A\n\n${E}\n\n- x`)).toEqual(['A', '', '- x'])
+  expect(rows(`A\n\n${E}\n\n> q`)).toEqual(['A', '', '▎ q'])
+  expect(rows(`A\n${E}\n\n- x`)).toEqual(['A', '', '- x'])
+  expect(rows(`${E}\n\nB`)).toEqual(['B'])
+  expect(rows(`A\n\n${E}`)).toEqual(['A'])
+  expect(rows(`- a\n\n${E}\n\n# H`)).toEqual(['- a', '', 'H'])
+  // Between two blocks of the same text it is a blank row.
+  expect(rows(`A\n\n${E}\n\nB`)).toEqual(['A', '', '', '', 'B'])
+  expect(rows(`# H\n\n${E}\n\nB`)).toEqual(['H', '', '', '', 'B'])
+  expect(rows(`- a\n\nP\n\n${E}\n\nB`)).toEqual(['- a', '', 'P', '', '', '', 'B'])
+  expect(rows(`A\n\n${E}\n\n---\n\nB`)).toEqual(['A', '', '', '', '---', '', 'B'])
+  // In a list item it is nothing, the blank rows around it kept; in a quote,
+  // trimmed as the reply's text is.
+  expect(rows('- a\n  ```bash\n  ```\n\nB')).toEqual(['- a', '', 'B'])
+  expect(rows('- a\n\n  ```bash\n  ```\n\n  more\n\nB')).toEqual(['- a', '', '', '  more', '', 'B'])
+  expect(rows('> a\n>\n> ```bash\n> ```\n\nB')).toEqual(['▎ a', '', 'B'])
+  expect(rows('> a\n>\n> ```bash\n> ```\n>\n> b')).toEqual(['▎ a', '▎', '▎', '▎', '▎ b'])
+  // It is still a part, of no rows, so the parts stay the reply's one for one.
+  expect(layOut(`- a\n\n${E}\n\n\`\`\`\nx\n\`\`\``, 80).parts).toEqual([
+    { kind: 'code', start: 1, end: 0 },
+    { kind: 'code', start: 2, end: 2 },
+  ])
+  expect(renderReply(`- a\n\n${E}\n\nB`)).toBe('- a\n\nB')
+})
+
 // A code block's button whole or as its icon; a table's three, one under
 // another, or one as its icon.
 const ICON = { width: 2, height: 1 }
@@ -733,6 +788,24 @@ test('each code block gets its own button once the engine agrees on the reply\'s
   await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
   expect(copied).toEqual(['pwd'])
   expect(await blockButton(ui, 'part-1')).toBe('✓ copied')
+  await ui.unmount()
+})
+
+test('blocks after an empty one drawn as nothing, and a block naming a file, get their own buttons', async ($, on) => {
+  engine(on)
+  const copied: string[] = []
+  on('ui.copy', (_, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
+  // `- a`, a blank row, the empty block as nothing; `src/app.ts` on its own
+  // row above `x`: five rows, and the blank one above them.
+  const text = ['- a', '', '```bash', '```', '', '```ts:src/app.ts', 'x', '```'].join('\n')
+  const ui = await $.ui.mount({ ...HOVERED, props: { text, isFirstOfReply: true, onScreen: { first: 0, last: 4, of: 5 } } })
+  expect(await rowLabels(ui)).toEqual(['⧉ Reply'])
+  expect(await blockButton(ui, 'part-1')).toBe('⧉ copy')
+  await ui.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
+  expect(copied).toEqual(['x'])
   await ui.unmount()
 })
 
