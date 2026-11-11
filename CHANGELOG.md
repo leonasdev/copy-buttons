@@ -8,6 +8,15 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- A copy's notice (`copied as markdown · click again for rendered`) shows when
+  the buttons sit on the row above the closing line, as they do in a narrow
+  terminal or beside many code blocks: it moves to the closing line, past its
+  text. Where that line has too little room it reads just `copied as
+  markdown`, and only where even that does not fit does the ✓ tell the copy
+  alone. Before, the notice never showed with the buttons there.
+
 ## [1.5.3] - 2026-11-11
 
 ### Security
