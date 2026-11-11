@@ -8,6 +8,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-11-11
+
 ### Security
 
 - A copy no longer holds control characters the screen did not show. Claude
@@ -156,7 +158,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 - Tables copy as spreadsheet rows, or as drawn.
 - Settings: `icon`, `replyFormat`, `copiedNotice`.
 
-[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/leonasdev/copy-buttons/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/leonasdev/copy-buttons/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/leonasdev/copy-buttons/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/leonasdev/copy-buttons/compare/v1.4.2...v1.5.0
