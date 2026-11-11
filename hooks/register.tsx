@@ -8,6 +8,7 @@ import type { RowItem, RowPress } from './row'
 import type { Action } from './fit'
 import { copyables } from './blocks'
 import type { Copyable } from './blocks'
+import { clean } from './clean'
 import { onScreenPart, placeBlocks, placeOn } from './place'
 import type { Block, SizesOf } from './place'
 import { isFinalAnswer, knownVerdict } from './transcript'
@@ -264,7 +265,9 @@ export const register: Register = (on, options) => {
     finals.set(e.requestId, isFinal)
     if (!isFinal) return next(e)
 
-    const text = e.props.text
+    // Every label, flashed row and copy below is made from this text, so none
+    // holds a control character the reply was written with.
+    const text = clean(e.props.text)
 
     const { Box, Text, Client } = $.ui.resolve(e)
     const { parts, names, labels } = partsOf(e.requestId, text)

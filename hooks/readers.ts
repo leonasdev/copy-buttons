@@ -65,9 +65,12 @@ export const posix: Reader = {
 }
 
 // Windows: Windows PowerShell 5.1, which every Windows has. Values are written
-// into the script as single-quoted literals; the path comes back as base64 so
-// a name outside the console's code page survives.
-const literal = (value: string) => `'${value.replace(/'/g, "''")}'`
+// into the script as single-quoted literals, a quote in one doubled:
+// PowerShell reads ‘ ’ ‚ and ‛ as it reads ', so a path or an id holding one
+// (C:\Users\D’Angelo) would end its literal there, and the rest be run as
+// script. The path comes back as base64 so a name outside the console's code
+// page survives.
+const literal = (value: string) => `'${value.replace(/['\u2018\u2019\u201A\u201B]/g, '$&$&')}'`
 
 const locatePs = (projects: string, session: string, uuid: string) => `
 $ErrorActionPreference = 'SilentlyContinue'
@@ -123,9 +126,19 @@ if ($end -ge 0) {
 [Console]::Out.Write($out.ToString())
 `
 
-const POWERSHELL = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command']
+// Windows PowerShell by its path under the system's folder (`SystemRoot`,
+// C:\Windows), so it is the system's own whatever the session's folder or
+// PATH holds under that name; by its name alone where the folder is not known.
+export const powershell = (systemRoot?: string): string[] => [
+  systemRoot === undefined || systemRoot === '' ? 'powershell.exe' : `${systemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`,
+  '-NoProfile',
+  '-NonInteractive',
+  '-ExecutionPolicy',
+  'Bypass',
+  '-Command',
+]
 
-export function windows(projects: string, shell: readonly string[] = POWERSHELL): Reader {
+export function windows(projects: string, shell: readonly string[] = powershell()): Reader {
   return {
     locate: (session, uuid) => [...shell, locatePs(projects, session, uuid)],
     scan: (file, offset) => [...shell, scanPs(file, offset)],

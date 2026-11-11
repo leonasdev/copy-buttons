@@ -2,7 +2,9 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import { codeBlocks, copyables, readInfo } from '../hooks/blocks'
+import { clean } from '../hooks/clean'
 import { abbreviate, labelOf, layoutRow } from '../hooks/fit'
+import { powershell, windows } from '../hooks/readers'
 import { widthOf } from '../hooks/width'
 import { renderReply } from '../hooks/render'
 import type { RowItem, RowProps } from '../hooks/row'
@@ -302,6 +304,36 @@ test('an action copies its text, then its icon reads ✓ a moment', async ($, on
   await ui.unmount()
 })
 
+test('a reply is read without its control characters, a tab and a newline kept', () => {
+  expect(clean('a\x1b[31mb\x07\tc\r\nd\re\x00\x7f\u009bf')).toBe('a[31mb\tc\nd\nef')
+  expect(clean(ANSWER)).toBe(ANSWER)
+})
+
+test('a reply written with control characters is labeled and copied without them', async ($, on) => {
+  engine(on)
+  const copied: string[] = []
+  on('ui.copy', (_, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
+  // An escape sequence in a fence's info, and one in its code that would end
+  // a bracketed paste, the next line then run as typed.
+  const text = ['Run this:', '', '```sh\x1b[31m', 'echo hi\x1b[201~', 'rm -rf ~', '```', '', '| a\x07 | b |', '| --- | --- |', '| 1 | 2\x1b |'].join('\n')
+  const ui = await $.ui.mount({ ...MESSAGE, props: { text, isFirstOfReply: true } })
+  expect(await labels(ui)).toEqual(['⧉ Reply', '⧉ sh[31m', '⧉ table'])
+
+  await click(ui, 'copy-code:0')
+  await click(ui, 'copy-reply')
+  await click(ui, 'copy-table:0')
+  await click(ui, 'copy-table:0')
+  await click(ui, 'copy-table:0')
+  expect(copied[0]).toBe('echo hi[201~\nrm -rf ~')
+  expect(copied[1]).toBe(clean(text))
+  expect(copied[3]).toBe('a\tb\n1\t2')
+  for (const one of copied) expect(one).not.toMatch(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/)
+  await ui.unmount()
+})
+
 test('rendered lays the reply out as the terminal draws it', () => {
   const markdown = [
     '## Plan',
@@ -538,7 +570,7 @@ test('on Windows the transcript is read with PowerShell', async ($, on) => {
     return <Text>engine reply</Text>
   })
   on('session.id', () => ({ value: session }))
-  on('env.get', (_, e) => ({ value: { OS: 'Windows_NT', USERPROFILE: 'C:\\Users\\me' }[e.name] }))
+  on('env.get', (_, e) => ({ value: { OS: 'Windows_NT', USERPROFILE: 'C:\\Users\\me', SystemRoot: 'C:\\Windows' }[e.name] }))
   on('process.run', (_, e) => {
     argv.push([...e.argv])
     const isLocate = e.argv.some(arg => arg.includes('Get-ChildItem'))
@@ -550,11 +582,58 @@ test('on Windows the transcript is read with PowerShell', async ($, on) => {
 
   const ui = await $.ui.mount(MESSAGE)
   expect(await item(ui, 'copy-reply')).toBeDefined()
-  expect(argv.map(a => a[0])).toEqual(['powershell.exe', 'powershell.exe'])
+  // By its path under the system's folder, not by a name looked up.
+  const system = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+  expect(argv.map(a => a[0])).toEqual([system, system])
   expect(argv[0]?.at(-1)).toContain("'C:\\Users\\me\\.claude\\projects'")
   expect(argv[1]?.at(-1)).toContain(`p\\${session}.jsonl'`)
   await ui.unmount()
   useReader(null)
+})
+
+test('PowerShell is run by its name where the system\'s folder is not known', () => {
+  expect(powershell()[0]).toBe('powershell.exe')
+  expect(powershell('')[0]).toBe('powershell.exe')
+  expect(powershell('D:\\WINNT')[0]).toBe('D:\\WINNT\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
+})
+
+test('a value written into a PowerShell script has every quote PowerShell reads as one doubled', () => {
+  // A profile named D’Angelo: its path would end its literal at the ’.
+  const reader = windows('C:\\Users\\D\u2019Angelo\\.claude\\projects', ['powershell.exe'])
+  const locate = reader.locate("s'1", 'x\u2019; Start-Process calc; \u2018').at(-1) ?? ''
+  expect(locate).toContain("$d = 'C:\\Users\\D\u2019\u2019Angelo\\.claude\\projects'")
+  expect(locate).toContain("+ 'x\u2019\u2019; Start-Process calc; \u2018\u2018' +")
+  expect(locate).toContain("('s''1' + '.jsonl')")
+  const scan = reader.scan('C:\\p\\a\u201Ab\u201Bc\\s.jsonl', 0).at(-1) ?? ''
+  expect(scan).toContain("'C:\\p\\a\u201A\u201Ab\u201B\u201Bc\\s.jsonl'")
+})
+
+test('no command is run for a reply or a session whose id is not one Claude Code makes', async ($, on) => {
+  let session = 'odd-session'
+  let ran = 0
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine reply</Text>
+  })
+  on('session.id', () => ({ value: session }))
+  on('env.get', () => ({ value: undefined }))
+  on('process.run', () => {
+    ran++
+    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  mock.clock(on)
+
+  // As a transcript resumed may hold: an id that would leave its literal.
+  const odd = await $.ui.mount({ ...MESSAGE, requestId: 'x\u2019; Start-Process calc; \u2018' })
+  expect(await odd.find({ type: 'Text', text: 'engine reply' })).toBeDefined()
+  expect(await odd.find({ type: 'Client' })).toBeUndefined()
+  await odd.unmount()
+
+  session = 'odd session; rm -rf ~'
+  const other = await $.ui.mount({ ...MESSAGE, requestId: 'msg-odd-2' })
+  expect(await other.find({ type: 'Client' })).toBeUndefined()
+  await other.unmount()
+  expect(ran).toBe(0)
 })
 
 test('off fullscreen the reply draws without the row, and the session is told once', async ($, on) => {

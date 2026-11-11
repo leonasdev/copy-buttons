@@ -15,7 +15,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { posix, windows } from '../hooks/readers'
+import { posix, powershell, windows } from '../hooks/readers'
 import type { Reader } from '../hooks/readers'
 
 // Rows as Claude Code writes them, cut to the fields the scan reads, in the
@@ -88,7 +88,9 @@ type Platform = { name: string; reader: () => Reader; env: () => Record<string, 
 const platforms: Platform[] = []
 if (process.platform !== 'win32') platforms.push({ name: 'posix', reader: () => posix, env: () => ({ CLAUDE_CONFIG_DIR: config }) })
 if (POWERSHELL !== undefined) {
-  const shell = [POWERSHELL, '-NoProfile', '-NonInteractive', ...(POWERSHELL === 'powershell.exe' ? ['-ExecutionPolicy', 'Bypass'] : []), '-Command']
+  // Windows PowerShell with the plugin's own arguments, by its path under the
+  // system's folder where that is known (not on WSL).
+  const shell = POWERSHELL === 'powershell.exe' ? powershell(process.env.SystemRoot) : [POWERSHELL, '-NoProfile', '-NonInteractive', '-Command']
   platforms.push({ name: 'windows', reader: () => windows(projects, shell), env: () => ({}) })
   // PowerShell's first start, pwsh's on a fresh runner above all, can take
   // longer than a test's 5 seconds: it is paid here, untimed, not by the
@@ -140,6 +142,23 @@ for (const platform of platforms) {
     test('keeps a path outside ASCII', () => {
       const file = transcript('-home-我-專案', 'session-1', '')
       expect(locate('session-1', 't1')).toBe(file)
+    })
+
+    // As a profile named O'Brien or D’Angelo: PowerShell reads ‘ ’ ‚ and ‛ as
+    // it reads ', so one written into a script undoubled ends its literal.
+    test('finds and scans under a folder named with quotes, those PowerShell reads as one too', () => {
+      const root = config
+      try {
+        config = join(root, "o'brien d’angelo ‘a‚b‛c")
+        projects = join(config, 'projects')
+        mkdirSync(projects, { recursive: true })
+        const text = lines(row.text('t1', 'hi'), row.closing('d1'))
+        const file = transcript('-a', 'session-1', text)
+        expect(locate('session-1', 't1')).toBe(file)
+        expect(scan(file, 0)).toEqual(['T t1', 'D', `O ${bytes(text)}`])
+      } finally {
+        config = root
+      }
     })
   })
 

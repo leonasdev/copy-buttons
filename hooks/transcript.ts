@@ -1,6 +1,6 @@
 import type { EngineInterface } from 'claude-code'
 
-import { posix, windows } from './readers'
+import { posix, powershell, windows } from './readers'
 import type { Reader } from './readers'
 
 // What one transcript says so far: the replies that ended their turn, those
@@ -50,7 +50,7 @@ function readerOf($: EngineInterface): Promise<Reader> {
   reader ??= (async () => {
     if ((await $.env.get('OS')) !== 'Windows_NT') return posix
     const config = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${(await $.env.get('USERPROFILE')) ?? ''}\\.claude`
-    return windows(`${config}\\projects`)
+    return windows(`${config}\\projects`, powershell(await $.env.get('SystemRoot')))
   })()
   return reader
 }
@@ -121,11 +121,19 @@ export function knownVerdict(uuid: string): boolean | undefined {
   return undefined
 }
 
+// A session's or a reply's id as Claude Code makes them: letters, digits, `-`
+// and `_`. A transcript resumed may hold any text for a reply's, and both go
+// into the reader's command: no command is run with another kind of id.
+const ID = /^[\w-]{1,128}$/
+
 // True when the reply with this uuid is its turn's final answer and the turn's
 // closing line (`✻ Cooked for …`) follows it; false when not; undefined while
-// the turn still runs or the transcript cannot be read.
+// the turn still runs or the transcript cannot be read, as for an id that is
+// not one Claude Code makes.
 export async function isFinalAnswer($: EngineInterface, uuid: string): Promise<boolean | undefined> {
-  const file = await locate($, await $.session.id(), uuid)
+  const session = await $.session.id()
+  if (!ID.test(session) || !ID.test(uuid)) return undefined
+  const file = await locate($, session, uuid)
   if (file === undefined) return undefined
 
   let index = indexes.get(file)
