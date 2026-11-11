@@ -19,12 +19,12 @@ import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync 
 import { homedir, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
-import { posix, windows } from '../hooks/readers'
+import { posix, powershell, windows } from '../hooks/readers'
 import { fold } from '../hooks/transcript'
 
 const NEWEST = 30
 const PROJECTS = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'projects')
-const reader = process.platform === 'win32' ? windows(PROJECTS) : posix
+const reader = process.platform === 'win32' ? windows(PROJECTS, powershell(process.env.SystemRoot)) : posix
 
 // What Claude Code wrote up to 2.1.314. A type not here may be one the scan
 // should read, or one it reads by mistake (as `api-request-blob` once was).

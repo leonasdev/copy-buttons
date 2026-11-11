@@ -8,6 +8,30 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Security
+
+- A copy no longer holds control characters the screen did not show. Claude
+  Code draws a reply without them, but a copy took the reply as written, so
+  an escape sequence in it reached the clipboard: one that ends a bracketed
+  paste (`ESC [ 201 ~`) could make a terminal run what follows it as typed.
+  Every copy now leaves out control characters but a tab and a newline.
+- On Windows, a path or an id holding `‘`, `’`, `‚` or `‛` can no longer end
+  the literal it is written in, in the PowerShell script that reads the
+  transcript: PowerShell reads each as it reads `'`, so the rest could be run
+  as script, as with a resumed transcript whose message id was written for
+  that. No command is run for a session or a reply whose id is not letters,
+  digits, `-` and `_`, and PowerShell is run by its path under the system's
+  folder, not by a name looked up.
+
+### Fixed
+
+- A reply written with a control character (in a fence's info, say, or in
+  its code) keeps its buttons: before, Claude Code refused the row or a
+  block's flash, and showed an error under the answer.
+- On Windows, the buttons appear for a profile whose folder is named with
+  `‘`, `’`, `‚` or `‛` (`C:\Users\D’Angelo`): before, the transcript was
+  never read there.
+
 ## [1.5.2] - 2026-11-11
 
 ### Fixed
