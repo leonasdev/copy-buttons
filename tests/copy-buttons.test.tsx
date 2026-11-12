@@ -654,9 +654,14 @@ function files(on: On, projects: string, sep: string, session: string, size?: nu
     { type: 'system', subtype: 'turn_duration', uuid: 'd1' },
   ].map(row => `${JSON.stringify(row)}\n`).join('')
   const file = `${projects}${sep}-p${sep}${session}.jsonl`
-  // A Windows path, on the host that runs the tests, is relative: the engine
-  // puts the working directory before it.
-  const is = (path: string, want: string) => path === want || path.endsWith(`/${want}`)
+  // A path of the other platform than the one that runs the tests is not
+  // absolute there: the engine puts the working directory, or the drive,
+  // before it, and on Windows writes it with backslashes.
+  const slashed = (path: string) => path.replaceAll('\\', '/')
+  const is = (path: string, want: string) => {
+    const [got, wanted] = [slashed(path), slashed(want)]
+    return got === wanted || got.endsWith(wanted.startsWith('/') ? wanted : `/${wanted}`)
+  }
   const missing = () => {
     throw new Error('ENOENT')
   }
