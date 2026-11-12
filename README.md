@@ -36,7 +36,7 @@ Set them when installing, or later in `/config`.
 
 ## 🔍 How it works
 
-To tell a turn's final answer from the notes Claude writes between tool calls, the plugin reads the session's transcript, which Claude Code keeps in `~/.claude/projects/`. It reads it with read-only commands: `sh` with `ls`, `grep`, `xargs`, `wc`, `awk`, `head` and `tail` on Linux, macOS and WSL, or `powershell.exe` on Windows.
+To tell a turn's final answer from the notes Claude writes between tool calls, the plugin reads the session's transcript, which Claude Code keeps in `~/.claude/projects/`. It reads it through Claude Code's own file reads, starting no process. A transcript over 4 MiB, more than one such read takes, and a forked session that has not written its own yet, are read with read-only commands: `sh` with `ls`, `grep`, `xargs`, `wc`, `awk`, `head` and `tail` on Linux, macOS and WSL, or `powershell.exe` on Windows.
 
 To put buttons on a code block or table, it lays the answer out as the terminal does at the window's width, and trusts that only while the answer's height matches the one Claude Code reports; otherwise they keep their buttons at the end of the answer. After a copy, the flash redraws their rows over Claude Code's own.
 

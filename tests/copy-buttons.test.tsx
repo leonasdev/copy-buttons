@@ -645,6 +645,85 @@ test('on Windows the transcript is read with PowerShell', async ($, on) => {
   useReader(null)
 })
 
+// A transcript the engine's file system calls reach, under a projects folder
+// of another project too: what the reply `msg-1` and its closing line write.
+function files(on: On, projects: string, sep: string, session: string, size?: number) {
+  const text = [
+    { type: 'user', message: { role: 'user', content: 'hi' }, uuid: 'p1' },
+    { type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'x' }] }, uuid: 'msg-1' },
+    { type: 'system', subtype: 'turn_duration', uuid: 'd1' },
+  ].map(row => `${JSON.stringify(row)}\n`).join('')
+  const file = `${projects}${sep}-p${sep}${session}.jsonl`
+  // A Windows path, on the host that runs the tests, is relative: the engine
+  // puts the working directory before it.
+  const is = (path: string, want: string) => path === want || path.endsWith(`/${want}`)
+  const missing = () => {
+    throw new Error('ENOENT')
+  }
+  on('fs.list', (_, e) => {
+    if (!is(e.path, projects)) missing()
+    return { value: ['-other', '-p'].map(name => ({ name, kind: 'dir' as const, size: 0, mtimeMs: 0, isLink: false })) }
+  })
+  on('fs.stat', (_, e) => {
+    if (!is(e.path, file)) missing()
+    return { value: { kind: 'file' as const, size: size ?? new TextEncoder().encode(text).length, mtimeMs: 1, isLink: false } }
+  })
+  on('fs.read', (_, e) => {
+    if (!is(e.path, file)) missing()
+    return { value: { base64: btoa(text) } }
+  })
+}
+
+test('the transcript is read in the engine\'s own process, with no command run, on Windows too', async ($, on) => {
+  useReader(null)
+  const session = 'in-process'
+  const ran: string[][] = []
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine reply</Text>
+  })
+  on('session.id', () => ({ value: session }))
+  on('env.get', (_, e) => ({ value: { OS: 'Windows_NT', USERPROFILE: 'C:\\Users\\me' }[e.name] }))
+  on('process.run', (_, e) => {
+    ran.push([...e.argv])
+    return { value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  files(on, 'C:\\Users\\me\\.claude\\projects', '\\', session)
+  mock.clock(on)
+
+  const ui = await $.ui.mount(MESSAGE)
+  expect(await labels(ui)).toEqual(['⧉ Reply', '⧉ bash 1', '⧉ bash 2', '⧉ ts'])
+  expect(ran).toEqual([])
+  await ui.unmount()
+  useReader(null)
+})
+
+test('a transcript past what one read of the engine takes is scanned by the platform\'s command', async ($, on) => {
+  useReader(null)
+  const session = 'in-process-large'
+  const ran: string[][] = []
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine reply</Text>
+  })
+  on('session.id', () => ({ value: session }))
+  on('env.get', (_, e) => ({ value: { HOME: '/home/me' }[e.name] }))
+  on('process.run', (_, e) => {
+    ran.push([...e.argv])
+    return { value: { exitCode: 0, stdout: 'T msg-1\nD\nO 100', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  files(on, '/home/me/.claude/projects', '/', session, 5 * 1024 * 1024)
+  mock.clock(on)
+
+  const ui = await $.ui.mount(MESSAGE)
+  expect(await labels(ui)).toEqual(['⧉ Reply', '⧉ bash 1', '⧉ bash 2', '⧉ ts'])
+  // Found with the engine's calls; scanned, once, by sh.
+  expect(ran).toHaveLength(1)
+  expect(ran[0]?.at(-2)).toBe('/home/me/.claude/projects/-p/in-process-large.jsonl')
+  await ui.unmount()
+  useReader(null)
+})
+
 test('PowerShell is run by its name where the system\'s folder is not known', () => {
   expect(powershell()[0]).toBe('powershell.exe')
   expect(powershell('')[0]).toBe('powershell.exe')

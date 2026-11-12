@@ -8,6 +8,14 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- The buttons show sooner on a resumed session, on Windows above all: the
+  transcript is read through Claude Code's own file reads instead of a
+  command, so no PowerShell starts (which took a second or more before the
+  first buttons showed, however short the transcript). A transcript over
+  4 MiB is still read with `sh` or PowerShell, as before.
+
 ## [1.5.4] - 2026-11-11
 
 ### Fixed

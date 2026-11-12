@@ -1,4 +1,5 @@
-// How the transcript is read on each platform: a command that finds the
+// How the transcript is read: in the engine's own process where it can be
+// (`locateIn`, `scanIn`), else on each platform by a command that finds the
 // session's transcript, and one that prints the tokens of what was added to
 // it since a byte offset. Both platforms print the same tokens:
 //   T <uuid>  the model wrote text       U  the model called a tool
@@ -13,6 +14,75 @@ export type Reader = {
   locate: (session: string, uuid: string) => string[]
   scan: (file: string, offset: number) => string[]
   decodePath: (stdout: string) => string
+}
+
+// In the engine's own process, with no command started: the engine's file
+// system calls, which a test or a probe stands in for. A read of a whole file
+// past FILE_LIMIT is refused, so a larger transcript is read by a command.
+export type Files = {
+  list: (dir: string) => Promise<readonly { name: string; kind: string; isLink: boolean }[]>
+  stat: (path: string) => Promise<{ kind: string; size: number; mtimeMs: number }>
+  read: (path: string) => Promise<Uint8Array>
+}
+export const FILE_LIMIT = 4 * 1024 * 1024
+
+// The token one row prints, as the scripts below say for it: the same tests
+// on the same words, in the same order.
+function tokenOf(row: string): string | undefined {
+  if (row.includes('"isSidechain":true')) return undefined
+  if (row.includes('"subtype":"turn_duration"')) return 'D'
+  if (row.includes('"type":"assistant"') && row.includes('"role":"assistant"')) {
+    if (row.includes('"content":[{"type":"tool_use"')) return 'U'
+    if (row.includes('"content":[{"type":"text"')) {
+      const uuid = /"uuid":"([^"]+)"/.exec(row)?.[1]
+      return uuid === undefined ? undefined : `T ${uuid}`
+    }
+    return undefined
+  }
+  if (row.includes('"type":"user"') && !row.includes('"type":"tool_result"')) return 'P'
+  return undefined
+}
+
+// A scan's tokens for a transcript's bytes from an offset on, as `scan`
+// prints them: the rows up to the last newline, then `O <offset>`.
+export function scanBytes(bytes: Uint8Array, offset: number): string[] {
+  const end = bytes.lastIndexOf(10)
+  if (end < offset) return [`O ${offset}`]
+  const rows = new TextDecoder().decode(bytes.subarray(offset, end + 1)).split('\n')
+  const tokens = rows.flatMap(row => tokenOf(row) ?? [])
+  return [...tokens, `O ${end + 1}`]
+}
+
+// The session's own transcript, the newest where two projects hold one, found
+// with the engine's calls; undefined where none is, or the folder cannot be
+// listed (a forked session's reply is then looked for by `locate`).
+export async function locateIn(files: Files, projects: string, sep: string, session: string): Promise<string | undefined> {
+  const entries = await files.list(projects).catch(() => undefined)
+  if (entries === undefined) return undefined
+  const name = `${session}.jsonl`
+  const found = await Promise.all(
+    entries
+      .filter(entry => !entry.name.startsWith('.') && (entry.kind === 'dir' || entry.isLink))
+      .map(async entry => {
+        const path = `${projects}${sep}${entry.name}${sep}${name}`
+        const stat = await files.stat(path).catch(() => undefined)
+        return stat?.kind === 'file' ? { path, mtimeMs: stat.mtimeMs } : undefined
+      }),
+  )
+  let newest: { path: string; mtimeMs: number } | undefined
+  for (const one of found) if (one !== undefined && (newest === undefined || one.mtimeMs > newest.mtimeMs)) newest = one
+  return newest?.path
+}
+
+// What `scan` prints, read with the engine's calls; undefined where the file
+// is past FILE_LIMIT or a call fails, for `scan` to read it instead. A file no
+// longer than the offset is not read again.
+export async function scanIn(files: Files, file: string, offset: number): Promise<string[] | undefined> {
+  const stat = await files.stat(file).catch(() => undefined)
+  if (stat === undefined || stat.size > FILE_LIMIT) return undefined
+  if (stat.size <= offset) return [`O ${offset}`]
+  const bytes = await files.read(file).catch(() => undefined)
+  return bytes === undefined ? undefined : scanBytes(bytes, offset)
 }
 
 // Linux, macOS and WSL: POSIX sh and its tools. The session's own file comes
