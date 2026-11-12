@@ -1,7 +1,7 @@
 import type { EngineInterface } from 'claude-code'
 
-import { posix, powershell, windows } from './readers'
-import type { Reader } from './readers'
+import { locateIn, posix, powershell, scanIn, windows } from './readers'
+import type { Files, Reader } from './readers'
 
 // What one transcript says so far: the replies that ended their turn, those
 // that did not, the latest text still waiting on what follows it, and how far
@@ -42,23 +42,50 @@ let located: { session: string; file: string } | null = null
 // than this after the last one waits for the next ask (the turn's end asks).
 const REREAD_MS = 250
 
-// The platform's way of reading the transcript, chosen once: PowerShell on
-// Windows (where `OS` is `Windows_NT`), POSIX tools on Linux, macOS and WSL.
-let reader: Promise<Reader> | null = null
+// The platform's way of reading the transcript, chosen once: where the
+// transcripts are, and the commands that read one the engine's calls cannot
+// (PowerShell on Windows, where `OS` is `Windows_NT`; POSIX tools on Linux,
+// macOS and WSL). Each command is a process started, which on Windows takes a
+// second or so: the engine's calls take a few milliseconds, and are tried
+// first (`inProcess`) unless a probe or a test chose a reader of its own.
+type Platform = { reader: Reader; projects?: string; sep: string; inProcess: boolean }
+let platform: Promise<Platform> | null = null
 
-function readerOf($: EngineInterface): Promise<Reader> {
-  reader ??= (async () => {
-    if ((await $.env.get('OS')) !== 'Windows_NT') return posix
-    const config = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${(await $.env.get('USERPROFILE')) ?? ''}\\.claude`
-    return windows(`${config}\\projects`, powershell(await $.env.get('SystemRoot')))
+function platformOf($: EngineInterface): Promise<Platform> {
+  platform ??= (async () => {
+    const isWindows = (await $.env.get('OS')) === 'Windows_NT'
+    const sep = isWindows ? '\\' : '/'
+    // Empty as unset, as `\${CLAUDE_CONFIG_DIR:-…}` reads it.
+    const home = (isWindows ? await $.env.get('USERPROFILE') : await $.env.get('HOME')) || undefined
+    const config = (await $.env.get('CLAUDE_CONFIG_DIR')) || (home === undefined ? undefined : `${home}${sep}.claude`)
+    const projects = config === undefined ? undefined : `${config}${sep}projects`
+    if (!isWindows) return { reader: posix, projects, sep, inProcess: true }
+    const reader = windows(projects ?? '\\.claude\\projects', powershell(await $.env.get('SystemRoot')))
+    return { reader, projects, sep, inProcess: true }
   })()
-  return reader
+  return platform
 }
 
 // For a probe or test that reads with a reader of its own; null chooses
 // again by the platform at the next read.
 export function useReader(chosen: Reader | null) {
-  reader = chosen === null ? null : Promise.resolve(chosen)
+  platform = chosen === null ? null : Promise.resolve({ reader: chosen, sep: '/', inProcess: false })
+}
+
+// The engine's file system calls, as the readers take them.
+function filesOf($: EngineInterface): Files {
+  return {
+    list: path => $.fs.list(path),
+    stat: path => $.fs.stat(path),
+    read: async path => bytesOf((await $.fs.read(path, { as: 'bytes' })).base64),
+  }
+}
+
+function bytesOf(base64: string): Uint8Array {
+  const text = atob(base64)
+  const bytes = new Uint8Array(text.length)
+  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
+  return bytes
 }
 
 // Asks made while the session's file is being looked for wait on that look.
@@ -72,7 +99,12 @@ async function locate($: EngineInterface, session: string, uuid: string): Promis
   }
 
   const found = (async () => {
-    const read = await readerOf($)
+    const { reader: read, projects, sep, inProcess } = await platformOf($)
+    const own = inProcess && projects !== undefined ? await locateIn(filesOf($), projects, sep, session) : undefined
+    if (own !== undefined) {
+      located = { session, file: own }
+      return own
+    }
     const ran = await $.process.run(read.locate(session, uuid), { timeoutMs: 10000 })
     if (ran.exitCode !== 0 || ran.stdout.trim() === '') return undefined
     const file = read.decodePath(ran.stdout)
@@ -91,15 +123,25 @@ async function locate($: EngineInterface, session: string, uuid: string): Promis
   }
 }
 
+// The tokens of what was added since a byte offset: read in the engine's own
+// process, or by the platform's command for a file past what one read takes
+// (or where the engine's calls fail), which goes on from the same offset.
+async function scanOf($: EngineInterface, file: string, offset: number): Promise<string[] | undefined> {
+  const { reader, inProcess } = await platformOf($)
+  const read = inProcess ? await scanIn(filesOf($), file, offset) : undefined
+  if (read !== undefined) return read
+  const ran = await $.process.run(reader.scan(file, offset), { timeoutMs: 20000 })
+  if (ran.exitCode !== 0) return undefined
+  return ran.stdout.split('\n').filter(line => line !== '')
+}
+
 // Reads what was added to the transcript since the last read; asks made while
 // one read runs wait on that read.
 async function refresh($: EngineInterface, index: Index): Promise<void> {
   if (index.reading !== null) return index.reading
   index.reading = (async () => {
-    const read = await readerOf($)
-    const ran = await $.process.run(read.scan(index.file, index.offset), { timeoutMs: 20000 })
-    if (ran.exitCode !== 0) return
-    const tokens = ran.stdout.split('\n').filter(line => line !== '')
+    const tokens = await scanOf($, index.file, index.offset)
+    if (tokens === undefined) return
     const end = tokens.pop()
     if (end?.startsWith('O ') !== true) return
     fold(index, tokens)
