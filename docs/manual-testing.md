@@ -79,12 +79,12 @@ before is left as it is; `git diff tests/fixtures/` shows one drawn otherwise.
 - A narrow window (30–50 columns): wrapped blocks, the icon alone, covering.
 - A block scrolled half off the top and the bottom: the mark only on its rows
   on screen, the button on its first one.
-- A reply holding a table wider than the window (session `69ff2c81…`'s second
-  reply below 100 columns): the table narrowed or drawn as lines, the card's
-  rows the screen's own, every other block with its own button.
+- A reply holding a table wider than the window (the last table of
+  `dev/samples/05-tables.md`: narrowed at 80 columns, drawn as lines at 46):
+  the card's rows the screen's own, every other block with its own button.
 - A reply holding tables in list items and quotes, and text in other scripts
-  (session `1ae9ae8d…`, `dev/samples/11-nested-tables.md` and `12-scripts.md`):
-  each table its own buttons; below Hindi, tmux draws the reply a row lower.
-- Lists seven deep and a table of 205 rows (session `4177174e…`,
-  `dev/samples/13-deep-lists.md` and `14-long-table.md`): the table's card
-  over all its rows, `… 5 more rows not shown` included.
+  (`dev/samples/11-nested-tables.md` and `12-scripts.md`): each table its own
+  buttons; below Hindi, tmux draws the reply a row lower.
+- Lists seven deep and a table of 205 rows (`dev/samples/13-deep-lists.md`
+  and `14-long-table.md`): the table's card over all its rows,
+  `… 5 more rows not shown` included.
