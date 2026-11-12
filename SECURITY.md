@@ -11,9 +11,10 @@ system and terminal. You can expect an answer within a week.
 ## What counts
 
 - A copy that puts on the clipboard something the screen did not show.
-- A transcript, a path or a reply that makes the plugin run a command other
-  than the read-only ones the [README](README.md#-how-it-works) lists, or read
-  a file outside Claude Code's projects folder.
+- A transcript, a path or a reply that makes the plugin run anything but its
+  own read-only commands (`sh` with `ls`, `grep`, `xargs`, `wc`, `awk`, `head`
+  and `tail`, or `powershell.exe` on Windows), or read a file outside Claude
+  Code's projects folder.
 
 A Claude Code update that moves or hides the buttons is a bug, not a
 vulnerability: [open an issue](https://github.com/leonasdev/copy-buttons/issues).
