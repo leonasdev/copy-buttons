@@ -1,9 +1,9 @@
 # Release a version from GitHub, by hand: every check on Linux, macOS and
 # Windows at the Claude Code in .github/claude-code-version, then
-# dev/release.sh on main, which runs dev/release-check.sh, commits, tags,
-# pushes both and makes the GitHub release. A tag pushed with this token
-# starts no workflow, so the checks a release's tag would run in ci.yml run
-# here first.
+# dev/release.sh on main, which runs dev/release-check.sh, commits to main and
+# tags through GitHub's API (so GitHub signs the commit: Verified) and makes
+# the GitHub release. A tag made with this token starts no workflow, so the
+# checks a release's tag would run in ci.yml run here first.
 name: Release
 
 on:
@@ -45,7 +45,4 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          dev/release.sh "$VERSION"
+        run: dev/release.sh "$VERSION"

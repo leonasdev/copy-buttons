@@ -1,8 +1,14 @@
 #!/bin/sh
 # Release a version: move CHANGELOG.md's [Unreleased] entries under it, set it
 # in plugin.json and as the tag marketplace.json installs from, run
-# dev/release-check.sh, then commit, tag, push the commit and the tag together
-# and make the GitHub release. Nothing is committed if a check fails.
+# dev/release-check.sh, then commit to main, tag and make the GitHub release.
+# Nothing is committed if a check fails. Run by the Release workflow
+# (.github/workflows/release.yml).
+#
+# The commit is made through GitHub's API (createCommitOnBranch), not git
+# commit and git push: GitHub signs a commit it makes, so the release commit
+# shows as Verified with no signing key on the runner. The tag is made the
+# same way, after the commit.
 #
 #   dev/release.sh 1.4.0
 set -eu
@@ -60,12 +66,40 @@ body=$(printf '%s\n' "$notes" | awk '
   { if (started) print item; item = $0; started = 1 }
   END { if (started) print item }')
 
-git add CHANGELOG.md .claude-plugin/plugin.json .claude-plugin/marketplace.json
-printf 'chore(release): %s\n\n%s\n' "$version" "$body" | git commit -q -F -
-git tag -a "$tag" -m "copy-buttons $version"
-git push --atomic origin main "$tag" ||
-  die "Push failed. The commit and $tag are made here: run git push --atomic origin main $tag, then dev/release.sh's gh release step."
-gh release create "$tag" --verify-tag --title "$version" --notes "$body" ||
-  die "The release is pushed, but its GitHub page is not made: run gh release create $tag --verify-tag --title $version --notes-file <its CHANGELOG entries>."
+repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+head=$(git rev-parse HEAD)
 
-printf '\nReleased %s.\n' "$version"
+# expectedHeadOid: refused if main moved on since this checkout.
+commit=$(jq -n \
+  --arg repo "$repo" --arg head "$head" \
+  --arg headline "chore(release): $version" --arg body "$body" \
+  --arg changelog "$(base64 -w0 CHANGELOG.md)" \
+  --arg plugin "$(base64 -w0 .claude-plugin/plugin.json)" \
+  --arg marketplace "$(base64 -w0 .claude-plugin/marketplace.json)" \
+  '{
+    query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+    variables: { input: {
+      branch: { repositoryNameWithOwner: $repo, branchName: "main" },
+      expectedHeadOid: $head,
+      message: { headline: $headline, body: $body },
+      fileChanges: { additions: [
+        { path: "CHANGELOG.md", contents: $changelog },
+        { path: ".claude-plugin/plugin.json", contents: $plugin },
+        { path: ".claude-plugin/marketplace.json", contents: $marketplace }
+      ] }
+    } }
+  }' | gh api graphql --input - --jq .data.createCommitOnBranch.commit.oid) ||
+  die "Not released: the release commit was not made (main moved on since the checks? release again)."
+[ -n "$commit" ] || die "Not released: GitHub returned no release commit."
+
+# Everything below runs after the commit is on main: a step that fails says
+# how to finish by hand. Releasing again would stop at the version check.
+on_main="The release commit $commit is on main"
+tag_object=$(gh api "repos/$repo/git/tags" -f tag="$tag" -f message="copy-buttons $version" \
+    -f object="$commit" -f type=commit --jq .sha) &&
+  gh api "repos/$repo/git/refs" -f ref="refs/tags/$tag" -f sha="$tag_object" --silent ||
+  die "$on_main, but $tag is not made: run gh api repos/$repo/git/refs -f ref=refs/tags/$tag -f sha=$commit, then gh release create $tag --verify-tag --title $version --notes-file <its CHANGELOG entries>."
+gh release create "$tag" --verify-tag --title "$version" --notes "$body" ||
+  die "$on_main and $tag is made, but its GitHub page is not made: run gh release create $tag --verify-tag --title $version --notes-file <its CHANGELOG entries>."
+
+printf '\nReleased %s: %s.\n' "$version" "$commit"
