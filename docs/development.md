@@ -31,3 +31,17 @@ Pushing to `main` reaches no one: the marketplace installs the tag named in `.cl
 2. Run the **Release** workflow from the Actions tab on `main`, with the version picked by [Semantic Versioning](https://semver.org) and the rule at the top of the changelog. It runs every check on Linux, macOS and Windows, then `dev/release.sh`, which dates the entries, sets the version in `plugin.json` and the tag in `marketplace.json`, runs `dev/release-check.sh`, then commits to `main`, tags and makes the GitHub release. If a check fails nothing is committed; if `[Unreleased]` is empty it lists the commits since the last release.
 
    The commit and the tag are made through GitHub's API, not pushed: GitHub signs a commit it makes, so the release commit is `github-actions[bot]`'s and Verified, with no signing key on the runner. If a step after the commit fails, the run's log says how to finish by hand: releasing again stops, since `plugin.json` already has the version.
+
+## A release that needs a newer Claude Code
+
+`plugin.json` can state the Claude Code versions the plugin runs on, as a semver range:
+
+```json
+"engines": { "claude-code": ">=2.1.330" }
+```
+
+Claude Code 2.1.323 and later read it: outside the range the plugin is not installed, updated or loaded, and the person is told the range and to run `claude update`. Earlier ones ignore it.
+
+It is not set now. A lower bound of 2.1.323 or below keeps no one out: every Claude Code that reads the field meets it. Set it when a release starts to need a Claude Code later than 2.1.323, to that version, and raise the first version in README's "Tested with" with it.
+
+Set no upper bound. Each new Claude Code would turn the plugin off for everyone until a release raised it, and a marketplace people add themselves does not update by itself; without one, an answer the plugin cannot follow keeps its buttons at the end of the answer.
