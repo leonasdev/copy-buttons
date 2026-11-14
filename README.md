@@ -5,13 +5,7 @@
 
 One-click copy buttons for Claude Code: on each code block and table while the pointer is over it, and at the end of every answer.
 
-```
-  npm install --save copy-buttons      ⧉ copy
-
-✻ Cooked for 3s · done 1:42 PM                            ⧉ Reply
-```
-
-<!-- TODO: demo GIF (docs/demo.gif) -->
+<img src="docs/demo.gif" width="800" alt="In Claude Code, the pointer moves over a table and its three copy buttons show; a click on sheet copies it. Over a code block, copy shows and copies it. At the end of the answer, Reply copies the answer as markdown, and a second click as rendered.">
 
 - **A table**: `markdown` copies it as Claude wrote it, `sheet` as rows to paste into Excel or Google Sheets, `boxed` with its borders as drawn.
 - **A code block**: `copy` copies just its code.
