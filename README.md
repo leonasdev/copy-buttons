@@ -1,4 +1,7 @@
-# copy-buttons
+<h1>
+  <img src=".claude-plugin/icon.png" width="40" height="40" alt="" align="absmiddle">
+  copy-buttons
+</h1>
 
 One-click copy buttons for Claude Code: on each code block and table while the pointer is over it, and at the end of every answer.
 
