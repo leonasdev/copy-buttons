@@ -99,7 +99,7 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 
 ## Known limitations
 
-Tested with Claude Code 2.1.318 to 2.1.323. The plugin relies on how Claude Code draws answers and writes transcripts, and on a plugin API still in early access; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if one does.
+Tested with Claude Code 2.1.318 to 2.1.325. The plugin relies on how Claude Code draws answers and writes transcripts, and on a plugin API still in early access; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if one does.
 
 - **An answer with a `mermaid` diagram**: its code blocks and tables have their buttons at the end of the answer, not on them.
 - **A narrow window**: a block's or table's button can cover the end of its first row while the pointer is over it.
