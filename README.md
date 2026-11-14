@@ -1,22 +1,17 @@
-# copy-buttons
+<h1>
+  <img src=".claude-plugin/icon.png" width="40" height="40" alt="" align="absmiddle">
+  copy-buttons
+</h1>
 
 One-click copy buttons for Claude Code: on each code block and table while the pointer is over it, and at the end of every answer.
 
-```
-  npm install --save copy-buttons      ⧉ copy
+<img src="docs/demo.gif" width="800" alt="In Claude Code, the pointer moves over a table and its three copy buttons show; a click on sheet copies it. Over a code block, copy shows and copies it. At the end of the answer, Reply copies the answer as markdown, and a second click as rendered.">
 
-✻ Cooked for 3s · done 1:42 PM                            ⧉ Reply
-```
+- **A table**: `markdown` copies it as Claude wrote it, `sheet` as rows to paste into Excel or Google Sheets, `boxed` with its borders as drawn.
+- **A code block**: `copy` copies just its code.
+- **A reply**: `Reply` copies the Markdown Claude wrote. Click again for the text as shown on screen.
 
-<!-- TODO: demo GIF (docs/demo.gif) -->
-
-- `Reply` copies the Markdown Claude wrote. Click again for the text as shown on screen.
-- A code block's `copy`, at its top right while the pointer is over it, copies just its code.
-- A table's three buttons copy it: `markdown` as Claude wrote it, `sheet` as rows you can paste into Excel or Google Sheets, `boxed` with its borders as drawn.
-- After a click on a block's button, the block flashes in the selection colour.
-- A code block or table that cannot have its own buttons (see Known limitations below) gets one at the end of the answer instead, named by its file or language, or `table`. A table's copies its markdown first; click again for spreadsheet rows, and again for it boxed.
-
-## 📦 Install
+## Install
 
 ```
 /plugin install copy-buttons --marketplace leonasdev/copy-buttons
@@ -24,7 +19,10 @@ One-click copy buttons for Claude Code: on each code block and table while the p
 
 Answer `y` to add the marketplace, then pick a scope (user scope makes it work in every session).
 
-## ⚙️ Settings
+> [!NOTE]
+> Updates are not automatic for a marketplace you add yourself. Turn them on once: `/plugin`, the **Marketplaces** tab, `copy-buttons`, **Enable auto-update**. Or update by hand with `/plugin marketplace update copy-buttons`, then `/reload-plugins`.
+
+## Settings
 
 Set them when installing, or later in `/config`.
 
@@ -32,19 +30,16 @@ Set them when installing, or later in `/config`.
 | --- | --- | --- |
 | Icon style | `standard`, `nerd-font` | The icon before each button: `⧉`, or the Nerd Font copy icon, which needs a Nerd Font. |
 | Default Reply copy format | `markdown`, `rendered` | What the first click on `Reply` copies. The second click copies the other. |
-| Code & table buttons | `hover`, `always`, `end-of-answer` | When a code block's or table's buttons show: while the pointer is over it, or all the time (except one that would cover text in a narrow window). `end-of-answer` shows none on them; each one's button stays at the end of the answer. |
+| Code & table buttons | `hover`, `always`, `end-of-answer` | Where a code block's or table's buttons show: on it while the pointer is over it, on it all the time, or only at the end of the answer. |
 
-## 🔍 How it works
+## Troubleshooting
 
-To tell a turn's final answer from the notes Claude writes between tool calls, the plugin reads the session's transcript, which Claude Code keeps in `~/.claude/projects/`. It reads it through Claude Code's own file reads, starting no process. A transcript over 4 MiB, more than one such read takes, and a forked session that has not written its own yet, are read with read-only commands: `sh` with `ls`, `grep`, `xargs`, `wc`, `awk`, `head` and `tail` on Linux, macOS and WSL, or `powershell.exe` on Windows.
+<details>
+<summary>The buttons vanished or moved after a Claude Code update</summary>
 
-To put buttons on a code block or table, it lays the answer out as the terminal does at the window's width, and trusts that only while the answer's height matches the one Claude Code reports; otherwise they keep their buttons at the end of the answer. After a copy, the flash redraws their rows over Claude Code's own.
+A new Claude Code can change how it draws an answer. Update the plugin: `/plugin marketplace update copy-buttons`, then `/reload-plugins`. If that does not fix it, please [open an issue](https://github.com/leonasdev/copy-buttons/issues).
 
-It writes no files, keeps nothing between sessions and makes no network requests. Copying goes through Claude Code's own clipboard support.
-
-The Claude desktop app has its own copy buttons for replies and code blocks, and its tables copy straight into spreadsheets, so there the plugin stays out of the way: it draws nothing and runs nothing.
-
-## 🛠️ Troubleshooting
+</details>
 
 <details>
 <summary>No buttons appear</summary>
@@ -70,7 +65,7 @@ Your terminal reports clicks but not pointer motion, so Claude Code never sees t
 <details>
 <summary>A code block or table has no button of its own</summary>
 
-Its button is at the end of the answer instead when the plugin cannot follow how Claude Code draws the answer (a `mermaid` diagram, say, or a Claude Code update changing how it draws), or for a moment after the answer is first drawn. An empty code block has no button at all.
+Its button is at the end of the answer instead when the plugin cannot follow how Claude Code draws the answer (a `mermaid` diagram, say, or a Claude Code update changing how it draws), or for a moment after the answer is first drawn. It is named by its file or language, or `table`; a table's copies its markdown first, then spreadsheet rows on a second click, and it boxed on a third. An empty code block has no button at all.
 
 </details>
 
@@ -102,17 +97,19 @@ Excel guesses each cell's format when pasting: `007` becomes `7`, `1/2` becomes 
 
 </details>
 
-## ⚠️ Known limitations
+## Known limitations
 
-- The plugin relies on things Claude Code does not promise to keep stable: the transcript format, where the closing `✻` line is drawn, how replies are rendered and wrapped, and the plugin API, which is in early access. Tested with Claude Code 2.1.318 to 2.1.323; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if it does.
-- Code blocks and tables get no buttons of their own in an answer holding a `mermaid` code block: Claude Code draws it as a diagram, which the plugin does not follow. Their buttons are at the end of the answer instead.
-- In tmux, an answer holding Devanagari (Hindi) is drawn a row lower below each line tmux finds too long, so a block's buttons and flash there look a row off.
-- In a narrow window a block's or table's button can cover the end of its first row while the pointer is over it.
-- Not yet tested on macOS or native Windows.
+Tested with Claude Code 2.1.318 to 2.1.323. The plugin relies on how Claude Code draws answers and writes transcripts, and on a plugin API still in early access; a later update can break it. Please [open an issue](https://github.com/leonasdev/copy-buttons/issues) if one does.
+
+- **An answer with a `mermaid` diagram**: its code blocks and tables have their buttons at the end of the answer, not on them.
+- **A narrow window**: a block's or table's button can cover the end of its first row while the pointer is over it.
+- **tmux with Devanagari (Hindi) text**: a block's buttons and flash can look a row off.
+- **The Claude desktop app**: the plugin does nothing there; the app has its own copy buttons.
 
 ## Development
 
-The checks, CI and releasing: [docs/development.md](docs/development.md).
+- How it works: [docs/how-it-works.md](docs/how-it-works.md).
+- The checks, CI and releasing: [docs/development.md](docs/development.md).
 
 ## Credits
 

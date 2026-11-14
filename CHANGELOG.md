@@ -8,6 +8,10 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Added
+
+- An icon for the plugin, shown where a plugin directory lists it.
+
 ## [1.5.5] - 2026-11-12
 
 ### Fixed
