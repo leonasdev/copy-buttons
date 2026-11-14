@@ -8,6 +8,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+## [1.5.6] - 2026-11-14
+
 ### Added
 
 - An icon for the plugin, shown where a plugin directory lists it.
@@ -183,7 +185,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 - Tables copy as spreadsheet rows, or as drawn.
 - Settings: `icon`, `replyFormat`, `copiedNotice`.
 
-[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.5...HEAD
+[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.6...HEAD
+[1.5.6]: https://github.com/leonasdev/copy-buttons/compare/v1.5.5...v1.5.6
 [1.5.5]: https://github.com/leonasdev/copy-buttons/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/leonasdev/copy-buttons/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/leonasdev/copy-buttons/compare/v1.5.2...v1.5.3
