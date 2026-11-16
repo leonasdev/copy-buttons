@@ -5,7 +5,7 @@
   "plugins": [
     {
       "name": "copy-buttons",
-      "source": { "source": "github", "repo": "leonasdev/copy-buttons", "ref": "v1.5.6" }
+      "source": { "source": "url", "url": "https://github.com/leonasdev/copy-buttons.git", "ref": "v1.5.6" }
     }
   ]
 }
