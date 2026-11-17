@@ -21,7 +21,7 @@ The tmux ones resume sessions of their own, signed out: nothing is sent to the m
 
 - `ci.yml` runs the checks on each pull request and push to `main`, with the Claude Code in `.github/claude-code-version`, so a new Claude Code turns no pull request red; on macOS and Windows too for a release's tag.
 - `release.yml`, run by hand on `main`, releases a version: see [Releasing](#releasing).
-- `claude-code-watch.yml` looks for a new Claude Code every six hours and checks it once, on all three and live (with the `CLAUDE_CODE_OAUTH_TOKEN` secret). One that fails opens an issue; one that passes closes those of the versions before it, and commits `.github/claude-code-version` and README's "Tested with" to `main`.
+- `claude-code-watch.yml` looks for a new Claude Code every six hours and checks it once, on all three and live (with the `CLAUDE_CODE_OAUTH_TOKEN` secret). One that fails opens an issue; one that passes closes those of the versions before it, and commits `.github/claude-code-version` and README's "Tested with" to `main`, each raised on its own where it is older. A pull request that needs a new Claude Code to pass (a fix for what it changed) pins the checks to it in `.github/claude-code-version` itself, and can leave README to the watch run that follows.
 
 ## Releasing
 
