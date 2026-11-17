@@ -25,11 +25,13 @@ function place(text: string, width: number, align: string | null): string {
   return text + ' '.repeat(room)
 }
 
-// A cell's rows at a column's width: wrapped, its rows left empty dropped,
-// one empty row for nothing.
-function cellRows(text: string, width: number, isHard: boolean): string[] {
+// A cell's rows at a column's width: wrapped (with `isTrimmed`, the spaces at
+// each row's ends taken off), its rows left empty dropped, one empty row for
+// nothing.
+function cellRows(text: string, width: number, isHard: boolean, isTrimmed = false): string[] {
   if (width <= 0) return [text]
-  const rows = wrapAnsi(text.trimEnd(), width, isHard).filter(row => row.length > 0)
+  const wrapped = wrapAnsi(text.trimEnd(), width, isHard)
+  const rows = (isTrimmed ? wrapped.map(row => row.replace(/^ +| +$/g, '')) : wrapped).filter(row => row.length > 0)
   return rows.length > 0 ? rows : ['']
 }
 
@@ -86,14 +88,14 @@ export function piped(grid: Grid): string[] {
 }
 
 // The table as lines, for each row its cells as `Header: value`, a long value
-// wrapped (its first row past the header, the rest the screen's width less
-// three, each indented two, as from Claude Code 2.1.318), rows apart by a
-// rule; an empty cell under no header left out. Made for the screen's full
-// width: the reply's narrower rows wrap them again, a row's end carried over
-// without the indent.
+// wrapped in the screen's width less four (its first row past the header, the
+// rest two less, each indented two, the spaces at a row's ends taken off, as
+// from Claude Code 2.1.326), rows apart by a rule as wide, forty at most; an
+// empty cell under no header left out.
 function asLines(grid: Grid, rows: string[][], hidden: number, columns: number): string[] {
   const headers = rows.length === 0 ? [] : grid.header.map(text => text.trim())
-  const rule = '─'.repeat(Math.min(columns - 1, 40))
+  const room = columns - SPARE
+  const rule = '─'.repeat(Math.min(room, 40))
   const lines: string[] = []
   for (const cells of rows.length === 0 ? [grid.header] : rows) {
     const own: string[] = []
@@ -101,8 +103,8 @@ function asLines(grid: Grid, rows: string[][], hidden: number, columns: number):
       const header = headers[c] ?? ''
       const value = cell.trimEnd().replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim()
       if (header === '' && value === '') return
-      const first = cellRows(value, Math.max(header === '' ? columns - 1 : columns - widthOf(header) - 3, 10), false)
-      const wrapped = first.length <= 1 ? first : [first[0] ?? '', ...cellRows(first.slice(1).map(row => row.trim()).join(' '), columns - 3, false)]
+      const first = cellRows(value, Math.max(header === '' ? room : room - widthOf(`${header}: `), 10), false, true)
+      const wrapped = first.length <= 1 ? first : [first[0] ?? '', ...cellRows(first.slice(1).map(row => row.trim()).join(' '), room - 2, false, true)]
       own.push(header === '' ? (wrapped[0] ?? '') : `${header}: ${wrapped[0] ?? ''}`)
       own.push(...wrapped.slice(1).filter(row => row.trim() !== '').map(row => `  ${row}`))
     })
@@ -121,8 +123,8 @@ function asLines(grid: Grid, rows: string[][], hidden: number, columns: number):
 // 200 rows, then a line saying how many more. Its columns are their widest
 // cells where those fit in the screen less four; else, where their longest
 // words fit, those widths and the room left shared by what each column lacks
-// of its widest; else the longest words scaled down to the room, three at
-// least, words broken. Where a cell then wraps past four rows, or the table
+// of its widest; else the longest words, each cut to one width, the widest
+// that fits them in the room, words broken (as from Claude Code 2.1.326). Where a cell then wraps past four rows, or the table
 // is still too wide, it is drawn as lines instead.
 export function fitted(grid: Grid, columns: number): string[] {
   const rows = grid.rows.slice(0, MOST)
@@ -140,11 +142,12 @@ export function fitted(grid: Grid, columns: number): string[] {
       const spare = room - sum(fewest)
       const lacks = most.map((width, c) => width - (fewest[c] ?? 0))
       const lacking = sum(lacks)
-      widths = fewest.map((width, c) => width + Math.floor(((lacks[c] ?? 0) / lacking) * spare))
+      widths = fewest.map((width, c) => (lacking === 0 ? width : width + Math.floor(((lacks[c] ?? 0) / lacking) * spare)))
     } else {
       isHard = true
-      const scale = room / sum(fewest)
-      widths = fewest.map(width => Math.max(Math.floor(width * scale), NARROWEST))
+      let cap = room - (count - 1) * NARROWEST
+      while (sum(fewest.map(width => Math.min(width, cap))) > room) cap--
+      widths = fewest.map(width => Math.min(width, cap))
     }
   }
   const wrapped = wrapCells(grid, rows, widths, isHard)

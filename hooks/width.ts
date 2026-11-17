@@ -1,12 +1,14 @@
 // Terminal columns a text takes, as Claude Code counts them, by grapheme
 // (what draws as one character): an emoji sequence two (a ZWJ family, a
 // flag's pair, a keycap, one with a skin tone or a variation selector); any
-// other the sum of its code points', each nothing for a mark (Hebrew points,
-// Devanagari vowel signs, accents), a format or control character or a
-// Hangul vowel or final consonant joining a syllable, two for an emoji or an
-// East Asian wide or fullwidth character, else one. So a Devanagari conjunct
-// (`न्दी`) takes a column for each consonant. And a text wrapped at a width
-// as the terminal's drawing wraps it.
+// other the sum of its code points', each nothing for a mark drawn on its
+// letter (Hebrew points, a virama, accents), a format or control character
+// or a Hangul vowel or final consonant joining a syllable, two for an emoji
+// or an East Asian wide or fullwidth character, else one: a mark drawn beside
+// its letter (a Devanagari `ि` or `ी`, a Tamil `ொ`) one too, as Claude Code
+// counts it from 2.1.326. So a Devanagari conjunct (`न्दी`) takes a column
+// for each consonant and each vowel sign drawn beside it. And a text wrapped
+// at a width as the terminal's drawing wraps it.
 
 const segmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter() : undefined
 
@@ -21,8 +23,8 @@ const DRESSED = /\u{fe0f}|\u{200d}|\u{20e3}|\p{Emoji_Modifier}|\p{Regional_Indic
 const KEYCAP_BASE = /^[0-9#*]/
 // Two columns as one character: one drawn as an emoji by default.
 const PICTURE = /^\p{Emoji_Presentation}$/u
-// Nothing on screen.
-const ZERO = /^[\p{Mn}\p{Me}\p{Mc}\p{Cf}\p{Cc}]$/u
+// Nothing on screen. A mark drawn beside its letter (Mc) takes a column.
+const ZERO = /^[\p{Mn}\p{Me}\p{Cf}\p{Cc}]$/u
 
 function isWide(code: number): boolean {
   return (

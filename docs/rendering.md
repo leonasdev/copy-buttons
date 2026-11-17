@@ -17,10 +17,13 @@ and parts must match) keeps a wrong guess from drawing a button on a wrong row.
   `tests/fixtures/` holds rows taken from screens.
 - Widths, as Claude Code counts them in wrapping and in tables, are
   `hooks/width.ts` `widthOf()`'s: by grapheme, an emoji sequence 2, any other
-  the sum of its code points' (a mark, Hebrew points and Devanagari vowel
-  signs among them, 0; an East Asian wide character, Tangut too, 2; else 1),
-  so a Devanagari conjunct takes a column per consonant. Checked on Hebrew,
-  Devanagari, Cyrillic with accents, Vietnamese and Tangut. Claude Code's own
+  the sum of its code points' (a mark drawn on its letter, Hebrew points and
+  a virama among them, 0; an East Asian wide character, Tangut too, 2; else
+  1, a mark drawn beside its letter too, such as the Devanagari vowel signs
+  `ि` and `ी`, since Claude Code 2.1.326, which counted it 0 before), so a
+  Devanagari conjunct takes a column per consonant and per vowel sign drawn
+  beside it. Checked on Hebrew, Devanagari, Tamil, Cyrillic with accents,
+  Vietnamese and Tangut. Claude Code's own
   `Bun.stringWidth` is Bun 1.4.4's; Bun 1.3.10's differs (it counts Hebrew
   points), so a local `bun` is no oracle for it. tmux draws Devanagari wider
   than Claude Code lays it out and pushes the overflow onto a row of its own,
@@ -92,8 +95,11 @@ widths from 30 to 130 (`tests/fixtures/`):
   `3 × columnCount`.
 - If the ideal widths fit, they are used. Else, if the minimum widths fit, each
   column gets its minimum plus `floor(share × spare)`, `share` its ideal minus
-  minimum over the sum of those. Else each gets `max(floor(minimum × room /
-  sumOfMinimums), 3)` and words may be broken (`hard`).
+  minimum over the sum of those. Else each gets `min(minimum, cap)`, `cap`
+  the widest from `room - 3 × (columnCount - 1)` down that fits them in the
+  room, and words may be broken (`hard`); a column whose longest word fits
+  under the cap keeps it whole (Claude Code 2.1.326; before, every minimum
+  was scaled down by `room / sumOfMinimums`).
 - Each cell wraps at its column's width as wrap-ansi wraps with `trim: false`
   and word wrap (Claude Code calls `Bun.wrapAnsi`), empty rows dropped: a space
   where a row ends exactly starts the next row (`│  over the lazy dog`). A row
@@ -101,10 +107,11 @@ widths from 30 to 130 (`tests/fixtures/`):
   (`floor((tall - own) / 2)` blank rows above).
 - If any cell takes more than 4 rows, or the drawn table is still wider than
   `columns - 4`, the table is drawn as lines instead: for each data row,
-  `Header: value` lines (the header bold), long values wrapped, rows separated
-  by a rule of `─` `min(columns - 1, 40)` long. These lines are made for the
-  full `columns`, so one can be `columns - 1` wide: the reply's `columns - 2`
-  rows wrap it again, as they wrap prose.
+  `Header: value` lines (the header bold), rows separated by a rule of `─`
+  `min(columns - 4, 40)` long. A long value wraps with `trim: true` in
+  `columns - 4` less its `Header: `, the rest of it in `columns - 6` on rows
+  indented 2, so no line is wider than the reply's rows (Claude Code 2.1.326;
+  before, in `columns`, so the reply's rows wrapped a line's end again).
 - At most 200 data rows are drawn, then `… N more rows not shown`, in boxes
   or as lines (after a rule there).
 - A table inside a list item or a quote is drawn as `hooks/table.ts` `piped()`

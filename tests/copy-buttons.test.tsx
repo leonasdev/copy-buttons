@@ -213,9 +213,12 @@ test('widths count emoji as two, combining marks as nothing', () => {
   expect(widthOf('e\u0301')).toBe(1)
   expect(widthOf('「引號」')).toBe(8)
   expect(widthOf('ok')).toBe(2)
-  // A mark nothing, a Devanagari conjunct a column for each consonant.
+  // A mark on its letter nothing, one beside it a column: a Devanagari
+  // conjunct a column for each consonant and for its vowel sign `ी`.
   expect(widthOf('שָׁלוֹם')).toBe(4)
-  expect(widthOf('न्दी')).toBe(2)
+  expect(widthOf('न्दी')).toBe(3)
+  expect(widthOf('हिन्दी नमस्ते')).toBe(10)
+  expect(widthOf('கொ')).toBe(2)
   expect(widthOf('𗀀')).toBe(2)
 })
 
@@ -1207,8 +1210,7 @@ test('a table too wide for the screen is one part, narrowed or as lines', () => 
   ])
   expect(rowsOf(46)).toEqual([
     'Wide: the quick brown fox jumps over the',
-    'lazy',
-    '  dog',
+    '  lazy dog',
     'Columns: 中文內容比較長的一格',
     'Here: ✅ done',
     'And: 👨‍👩‍👧 family',
