@@ -8,6 +8,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+## [1.5.7] - 2026-11-17
+
 ### Fixed
 
 - A table copies as Claude Code 2.1.326 draws it: a vowel sign drawn beside
@@ -194,7 +196,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 - Tables copy as spreadsheet rows, or as drawn.
 - Settings: `icon`, `replyFormat`, `copiedNotice`.
 
-[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.6...HEAD
+[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.7...HEAD
+[1.5.7]: https://github.com/leonasdev/copy-buttons/compare/v1.5.6...v1.5.7
 [1.5.6]: https://github.com/leonasdev/copy-buttons/compare/v1.5.5...v1.5.6
 [1.5.5]: https://github.com/leonasdev/copy-buttons/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/leonasdev/copy-buttons/compare/v1.5.3...v1.5.4
