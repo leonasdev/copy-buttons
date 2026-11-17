@@ -8,6 +8,15 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- A table copies as Claude Code 2.1.326 draws it: a vowel sign drawn beside
+  its letter (Devanagari, Tamil, Bengali and others) takes a column; a table
+  too narrow for its words cuts only its longest words; and one drawn as
+  `Header: value` lines wraps a long value with no word left on a row of its
+  own. On Claude Code 2.1.325 and before, such a table can copy a column or
+  a row off what the screen shows.
+
 ## [1.5.6] - 2026-11-14
 
 ### Added
