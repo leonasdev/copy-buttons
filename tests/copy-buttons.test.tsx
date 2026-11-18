@@ -618,6 +618,19 @@ test('the nerd-font style draws the Nerd Font icon', { options: { icon: 'nerd-fo
   await ui.unmount()
 })
 
+test('the text style reads copy, then copied, in the same columns', { options: { icon: 'text' } }, async ($, on) => {
+  engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const ui = await $.ui.mount(MESSAGE)
+  const before = await rowOf(ui)
+  expect(before.map(one => one.text)).toEqual(['copy Reply  ', 'copy bash 1  ', 'copy bash 2  ', 'copy ts  '])
+  await click(ui, 'copy-code:0')
+  const after = await rowOf(ui)
+  expect(after.find(one => one.key === 'copy-code:0')?.text).toBe('copied bash 1')
+  expect(after.map(({ from, to }) => [from, to])).toEqual(before.map(({ from, to }) => [from, to]))
+  await ui.unmount()
+})
+
 test('on Windows the transcript is read with PowerShell', async ($, on) => {
   useReader(null)
   const session = 'win-session'
@@ -1309,4 +1322,21 @@ test('a table\'s own buttons, one under another, copy it as markdown, for a spre
   expect(await blockButton(ui, 'part-0:2')).toBe('✓ copied')
   expect(await blockButton(ui, 'part-0')).toBe('⧉ markdown')
   await ui.unmount()
+})
+
+test('in the text style a block\'s own buttons read copy, and a table\'s copy and its format', { options: { icon: 'text' } }, async ($, on) => {
+  engine(on)
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  const code = await $.ui.mount({ ...HOVERED, props: onScreen(9) })
+  expect(await rowLabels(code)).toEqual(['copy Reply  '])
+  expect(await blockButton(code, 'part-1')).toBe('copy')
+  await code.pointer({ type: 'down', x: 0, y: 0, button: 'left', in: 'part-1' })
+  expect(await blockButton(code, 'part-1')).toBe('copied')
+  await code.unmount()
+
+  const height = layOut(TABLE_ANSWER, 61).rows.length + 1
+  const table = await $.ui.mount({ ...HOVERED, props: { text: TABLE_ANSWER, isFirstOfReply: true, onScreen: { first: 0, last: height - 1, of: height } } })
+  const names = ['part-0', 'part-0:1', 'part-0:2']
+  expect(await Promise.all(names.map(name => blockButton(table, name)))).toEqual(['copy markdown', 'copy sheet', 'copy boxed'])
+  await table.unmount()
 })

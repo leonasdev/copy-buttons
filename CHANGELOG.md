@@ -8,6 +8,12 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Added
+
+- Icon style `text`: no icon, the words `copy` and `copied` instead
+  (`copy Reply`, then `copied Reply`), for a font that draws `⧉` over the
+  space after it.
+
 ## [1.5.7] - 2026-11-17
 
 ### Fixed

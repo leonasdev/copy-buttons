@@ -36,11 +36,13 @@ export const GAP = 2
 export const labelOf = (item: Item) =>
   item.kind === 'action' ? item.action.label : item.kind === 'more' ? `› ${item.count} more` : '‹ back'
 
-// An item's columns: an action's icon, a space and its label; a page button's label.
-export const widthOfItem = (item: Item) => (item.kind === 'action' ? 2 : 0) + widthOf(labelOf(item))
+// An item's columns: an action's icon (`icon` columns: one for a glyph, the
+// longest of the words for the text style), a space and its label; a page
+// button's label.
+export const widthOfItem = (item: Item, icon = 1) => (item.kind === 'action' ? icon + 1 : 0) + widthOf(labelOf(item))
 
-const widthOfRow = (items: readonly Item[]) =>
-  items.reduce((sum, item) => sum + widthOfItem(item), 0) + GAP * Math.max(0, items.length - 1)
+const widthOfRow = (items: readonly Item[], icon: number) =>
+  items.reduce((sum, item) => sum + widthOfItem(item, icon), 0) + GAP * Math.max(0, items.length - 1)
 
 const asItems = (actions: readonly Action[]): Item[] => actions.map(action => ({ kind: 'action', action }))
 
@@ -87,7 +89,7 @@ export function abbreviate(actions: readonly Action[]): Action[] {
 // Pages of the row in `room` columns: the reply's action on the first,
 // `‹ back` leading the others, then as many code blocks as fit with
 // `› N more` where some are left.
-function paginate(actions: readonly Action[], room: number): Item[][] {
+function paginate(actions: readonly Action[], room: number, icon: number): Item[][] {
   const reply = actions.filter(action => action.isReply)
   const blocks = actions.filter(action => !action.isReply)
   const pages: Item[][] = []
@@ -100,7 +102,7 @@ function paginate(actions: readonly Action[], room: number): Item[][] {
       const left = blocks.length - next - 1
       const trial = [...items, { kind: 'action', action: block } as const, ...(left > 0 ? [{ kind: 'more', count: left } as const] : [])]
       // A page takes one block even where it does not fit, so paging ends.
-      if (widthOfRow(trial) > room && next > first) break
+      if (widthOfRow(trial, icon) > room && next > first) break
       items.push({ kind: 'action', action: block })
       next++
     }
@@ -112,19 +114,21 @@ function paginate(actions: readonly Action[], room: number): Item[][] {
 
 // Where the row goes and what it holds, trying in turn: every label whole
 // beside the closing line's text; whole on the blank row above it; cut short
-// there; then paged there, `page` the one shown.
+// there; then paged there, `page` the one shown. `icon` is the columns an
+// action's icon takes (`widthOfItem`).
 export function layoutRow(
   actions: readonly Action[],
   beside: number,
   above: number,
   page: number,
+  icon = 1,
 ): { isAbove: boolean; items: Item[]; pages: number } {
   const whole = asItems(actions)
-  if (widthOfRow(whole) <= beside) return { isAbove: false, items: whole, pages: 1 }
-  if (widthOfRow(whole) <= above) return { isAbove: true, items: whole, pages: 1 }
+  if (widthOfRow(whole, icon) <= beside) return { isAbove: false, items: whole, pages: 1 }
+  if (widthOfRow(whole, icon) <= above) return { isAbove: true, items: whole, pages: 1 }
   const short = abbreviate(actions)
-  if (widthOfRow(asItems(short)) <= above) return { isAbove: true, items: asItems(short), pages: 1 }
-  const pages = paginate(short, above)
+  if (widthOfRow(asItems(short), icon) <= above) return { isAbove: true, items: asItems(short), pages: 1 }
+  const pages = paginate(short, above, icon)
   const shown = pages[Math.min(Math.max(0, page), pages.length - 1)] ?? []
   return { isAbove: true, items: shown, pages: pages.length }
 }
