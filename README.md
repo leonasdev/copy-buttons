@@ -28,7 +28,7 @@ Set them when installing, or later in `/config`.
 
 | Setting | Options (default first) | What it does |
 | --- | --- | --- |
-| Icon style | `standard`, `nerd-font` | The icon before each button: `⧉`, or the Nerd Font copy icon, which needs a Nerd Font. |
+| Icon style | `standard`, `nerd-font`, `text` | The icon before each button: `⧉`; the Nerd Font copy icon, which needs a Nerd Font; or no icon, the words `copy` and `copied` instead. |
 | Default Reply copy format | `markdown`, `rendered` | What the first click on `Reply` copies. The second click copies the other. |
 | Code & table buttons | `hover`, `always`, `end-of-answer` | Where a code block's or table's buttons show: on it while the pointer is over it, on it all the time, or only at the end of the answer. |
 
@@ -87,6 +87,13 @@ Over SSH, copying reaches your computer's clipboard through OSC 52, and some ter
 <summary>The icon shows as a box or a question mark</summary>
 
 The `nerd-font` icon needs a [Nerd Font](https://www.nerdfonts.com) in your terminal. Install one, or set Icon style back to `standard` in `/config`.
+
+</details>
+
+<details>
+<summary>The icon runs into the word after it (<code>⧉Reply</code>)</summary>
+
+Some fonts draw `⧉` wider than one column, over the space after it: MS Gothic, or a font without `⧉`, where the terminal draws it from another font. Pick a font that has it, or set Icon style to `text` in `/config`, which draws no icon.
 
 </details>
 

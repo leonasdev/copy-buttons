@@ -12,11 +12,12 @@
     "icon": {
       "type": "string",
       "title": "Icon style",
-      "description": "The icon before each copy button. standard: ⧉, in any font. nerd-font: 󰆏, which needs a Nerd Font; pick it only if this icon shows here.",
+      "description": "The icon before each copy button. standard: ⧉, in any font. nerd-font: 󰆏, which needs a Nerd Font; pick it only if this icon shows here. text: the words copy and copied, no icon, for a font that draws ⧉ over the space after it.",
       "default": "standard",
       "options": [
         "standard",
-        "nerd-font"
+        "nerd-font",
+        "text"
       ]
     },
     "replyFormat": {

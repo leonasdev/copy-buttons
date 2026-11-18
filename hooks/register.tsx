@@ -48,6 +48,12 @@ const ICONS: Record<string, string> = {
   standard: STANDARD_ICON,
   'nerd-font': '\u{F018F}', // nf-md-content_copy
 }
+// The text style: words in place of the icon, for a font that draws `⧉`
+// wider than its column (over the space after it): `copy Reply`, then
+// `copied Reply`; a code block's `copy`, then `copied`.
+const TEXT_STYLE = 'text'
+const TEXT_ICON = 'copy'
+const TEXT_DONE = 'copied'
 
 // Which action last copied, and for one with two formats which it took and
 // which the next press takes: its icon reads ✓ a moment, its label kept so
@@ -187,11 +193,37 @@ const rows = new Map<string, { actions: Map<string, Action>; turnPage: (by: numb
 
 export const register: Register = (on, options) => {
   const icon = ICONS[String(options.icon)] ?? STANDARD_ICON
+  const isText = options.icon === TEXT_STYLE
+  // Columns the icon takes before an action's label on the row: in the text
+  // style the longer of its words, the shorter padded after the label, so a
+  // copy moves nothing.
+  const slot = isText ? Math.max(widthOf(TEXT_ICON), widthOf(TEXT_DONE)) : 1
+  const actionText = (label: string, isDone: boolean) => {
+    if (!isText) return `${isDone ? '✓' : icon} ${label}`
+    const word = isDone ? TEXT_DONE : TEXT_ICON
+    return `${word} ${label}${' '.repeat(slot - widthOf(word))}`
+  }
+  // A block's button as it reads: whole (`label`) or as its icon alone, at
+  // rest or just copied. In the text style a code block's reads `copy` alone.
+  const blockText = (label: string | undefined, isDone: boolean) => {
+    if (isText) return isDone ? TEXT_DONE : label === undefined || label === BLOCK_LABEL ? TEXT_ICON : `${TEXT_ICON} ${label}`
+    return label === undefined ? compactOf(isDone ? '✓' : icon) : isDone ? `✓ ${BLOCK_DONE}` : `${icon} ${label}`
+  }
   // A button's room: its icon and the widest of the labels it can read, or
   // its icon alone. A code block's sizes are its button whole or as its icon;
   // a table's its three buttons, one under another, or one as its icon.
-  const wholeOf = (labels: readonly string[]) => 2 + Math.max(...[...labels, BLOCK_DONE].map(widthOf))
-  const compact = { width: Math.max(widthOf(compactOf(icon)), widthOf(compactOf('✓'))), height: 1 }
+  // In the text style, the widest of the words it can read.
+  const widest = (texts: readonly string[]) => Math.max(...texts.map(widthOf))
+  const wholeOf = (labels: readonly string[]) =>
+    isText
+      ? widest([...labels.map(label => blockText(label, false)), blockText(BLOCK_LABEL, true)])
+      : 2 + Math.max(...[...labels, BLOCK_DONE].map(widthOf))
+  const compact = {
+    width: isText
+      ? widest([blockText(undefined, false), blockText(undefined, true)])
+      : Math.max(widthOf(compactOf(icon)), widthOf(compactOf('✓'))),
+    height: 1,
+  }
   const codeSizes = [{ width: wholeOf([BLOCK_LABEL]), height: 1 }, compact]
   const tableSizes = [{ width: wholeOf(TABLE_LABELS), height: TABLE_LABELS.length }, compact]
   const sizesOf: SizesOf = kind => (kind === 'code' ? codeSizes : tableSizes)
@@ -353,19 +385,19 @@ export const register: Register = (on, options) => {
     // Whole labels beside the closing line's own text if they fit; else on the
     // blank row above it, which has the reply's indent of room to spare, whole,
     // then cut short, then paged.
-    const { isAbove, items } = layoutRow(onRow, columns - ROW_RIGHT - CLOSING_LINE, columns - ROW_RIGHT - 2, page)
+    const { isAbove, items } = layoutRow(onRow, columns - ROW_RIGHT - CLOSING_LINE, columns - ROW_RIGHT - 2, page, slot)
     const turnPage = (by: number) =>
       update($, pages, old => ({ ...old, [e.requestId]: Math.max(0, (old[e.requestId] ?? 0) + by) }))
     rows.set(e.requestId, { actions: new Map([...all, ...tableActions].map(action => [action.key, action])), turnPage })
 
     // Columns from the row's right end to each item's: the widths of the
     // items after it and the gaps between them.
-    const widths = items.map(widthOfItem)
+    const widths = items.map(item => widthOfItem(item, slot))
     // The row as its module draws it: each item's text, columns and tone.
     let column = 0
     const rowItems: RowItem[] = items.map((item, i) => {
       const isDone = item.kind === 'action' && done?.id === `${e.requestId}:${item.action.key}`
-      const text = item.kind === 'action' ? `${isDone ? '✓' : icon} ${item.action.label}` : labelOf(item)
+      const text = item.kind === 'action' ? actionText(item.action.label, isDone) : labelOf(item)
       const from = column
       column += (widths[i] ?? 0) + GAP
       const key = item.kind === 'action' ? item.action.key : `page-${item.kind}`
@@ -432,7 +464,7 @@ export const register: Register = (on, options) => {
       const name = (i: number) => (i === 0 ? key : `${key}:${i}`)
       const drawnButtons = buttons.map(({ key: action, label }, i) => {
         const isDone = done?.id === `${e.requestId}:${action}`
-        const read = label === undefined ? compactOf(isDone ? '✓' : icon) : isDone ? `✓ ${BLOCK_DONE}` : `${icon} ${label}`
+        const read = blockText(label, isDone)
         const text = isOver ? ` ${read}` : read
         const width = widthOf(text)
         const item: RowItem = { key: action, text, from: 0, to: width, tone: isDone ? 'done' : 'idle' }
