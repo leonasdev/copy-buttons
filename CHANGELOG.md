@@ -8,6 +8,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-18
+
 ### Added
 
 - Icon style `text`: no icon, the words `copy` and `copied` instead
@@ -202,7 +204,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 - Tables copy as spreadsheet rows, or as drawn.
 - Settings: `icon`, `replyFormat`, `copiedNotice`.
 
-[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.5.7...HEAD
+[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/leonasdev/copy-buttons/compare/v1.5.7...v1.6.0
 [1.5.7]: https://github.com/leonasdev/copy-buttons/compare/v1.5.6...v1.5.7
 [1.5.6]: https://github.com/leonasdev/copy-buttons/compare/v1.5.5...v1.5.6
 [1.5.5]: https://github.com/leonasdev/copy-buttons/compare/v1.5.4...v1.5.5
