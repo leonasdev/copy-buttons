@@ -563,6 +563,21 @@ test('a failed copy says why in a toast, and nothing reads ✓', async ($, on) =
   await ui.unmount()
 })
 
+test('a copy no app answered says it may have landed', async ($, on) => {
+  engine(on)
+  const toasts: string[] = []
+  on('ui.copy', () => ({ value: { isCopied: false, reason: 'unanswered' } }))
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  const ui = await $.ui.mount(MESSAGE)
+  await click(ui, 'copy-code:0')
+  expect(toasts).toEqual(["✗ couldn't copy: the app on your screen did not answer; it may have copied anyway"])
+  expect((await item(ui, 'copy-code:0'))?.text).toBe('⧉ bash 1')
+  await ui.unmount()
+})
+
 test('the row is its own region: a quick second click is a second press', async ($, on) => {
   engine(on)
   const copied: string[] = []

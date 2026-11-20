@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderSurface } from 'claude-code'
+import type { EngineInterface, Register, RenderSurface, UiCopyResult } from 'claude-code'
 
 import type { Copied, Format } from '../types'
 import { renderReply } from './render'
@@ -28,11 +28,14 @@ const CLOSING_LINE = 48
 // Why a copy failed, and what to do, for each reason the engine gives; told
 // in a toast, so it is seen wherever the button was. A terminal that
 // drops an OSC 52 write says nothing, so that failure reads as a copy.
-const FAILURES: Record<'no-surface' | 'no-clipboard' | 'refused', string> = {
+// Keyed by the engine's own reasons, so a new one fails the type check.
+type Failure = Extract<UiCopyResult, { isCopied: false }>['reason']
+const FAILURES: Record<Failure, string> = {
   'no-clipboard':
     'no clipboard reachable. Over SSH, allow OSC 52 in your terminal (and set-clipboard on in tmux); very long text may exceed its limit',
   'no-surface': 'this session has no screen attached',
   refused: 'another plugin blocked it',
+  unanswered: 'the app on your screen did not answer; it may have copied anyway',
 }
 const FAILURE_MS = 8000
 
@@ -87,7 +90,7 @@ async function copy($: EngineInterface, what: Copy, surface: RenderSurface) {
   const { id, text, format, other } = what
   const result = await $.ui.copy({ text, surface })
   if (!result.isCopied) {
-    $.ui.toast(`✗ couldn't copy: ${FAILURES[result.reason]}`, { timeoutMs: FAILURE_MS })
+    $.ui.toast(`✗ couldn't copy: ${FAILURES[result.reason] ?? result.reason}`, { timeoutMs: FAILURE_MS })
     return
   }
 
