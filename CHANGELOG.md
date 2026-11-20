@@ -8,6 +8,12 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- A copy no app answered, a reason Claude Code 2.1.329 adds, says in its
+  toast that it may have copied anyway, not `couldn't copy: undefined`; a
+  reason the plugin does not know yet is shown as Claude Code names it.
+
 ## [1.6.0] - 2026-11-18
 
 ### Added
