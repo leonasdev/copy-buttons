@@ -105,7 +105,9 @@ async function locate($: EngineInterface, session: string, uuid: string): Promis
       located = { session, file: own }
       return own
     }
-    const ran = await $.process.run(read.locate(session, uuid), { timeoutMs: 10000 })
+    // An id the engine made is in no row: its row is found by the part it keeps.
+    const argv = DERIVED.test(uuid) ? read.locate(session, uuid.slice(0, ROW_PART), true) : read.locate(session, uuid)
+    const ran = await $.process.run(argv, { timeoutMs: 10000 })
     if (ran.exitCode !== 0 || ran.stdout.trim() === '') return undefined
     const file = read.decodePath(ran.stdout)
     // A file found by the reply rather than by the session may be another
@@ -153,12 +155,43 @@ async function refresh($: EngineInterface, index: Index): Promise<void> {
   return index.reading
 }
 
+// The id the engine draws a message under is not always its row's uuid: once
+// a row earlier in the transcript holds more than one block (Claude Code
+// 2.1.328 wrote a few as thinking and tool_use in one row), each message
+// after is drawn under an id made from its row's (the uuid's first 24
+// characters, then the block's number in 12 hex digits, `…-9e34-000000000000`).
+const ROW_PART = 24
+const DERIVED = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-0{6}[0-9a-f]{6}$/
+
+// Each index's verdicts by the part of a row's uuid an id the engine makes
+// keeps, made again only once a read has added replies to it.
+const byRowPart = new WeakMap<object, { size: number; verdicts: Map<string, boolean> }>()
+
+function rowPartsOf(index: Pick<Index, 'finals' | 'others'>): Map<string, boolean> {
+  const size = index.finals.size + index.others.size
+  const known = byRowPart.get(index)
+  if (known?.size === size) return known.verdicts
+  const verdicts = new Map<string, boolean>()
+  for (const other of index.others) verdicts.set(other.slice(0, ROW_PART), false)
+  for (const final of index.finals) verdicts.set(final.slice(0, ROW_PART), true)
+  byRowPart.set(index, { size, verdicts })
+  return verdicts
+}
+
+// What one index says of the reply, by the row's uuid or, for an id the engine
+// made from it, by the part of the row's uuid that id keeps.
+export function verdictIn(index: Pick<Index, 'finals' | 'others'>, uuid: string): boolean | undefined {
+  if (index.finals.has(uuid)) return true
+  if (index.others.has(uuid)) return false
+  return DERIVED.test(uuid) ? rowPartsOf(index).get(uuid.slice(0, ROW_PART)) : undefined
+}
+
 // What any transcript read so far says of the reply, with no read of its
 // own: what a draw can know at once.
 export function knownVerdict(uuid: string): boolean | undefined {
   for (const index of indexes.values()) {
-    if (index.finals.has(uuid)) return true
-    if (index.others.has(uuid)) return false
+    const verdict = verdictIn(index, uuid)
+    if (verdict !== undefined) return verdict
   }
   return undefined
 }
@@ -184,7 +217,7 @@ export async function isFinalAnswer($: EngineInterface, uuid: string): Promise<b
     indexes.set(file, index)
   }
 
-  const known = () => (index.finals.has(uuid) ? true : index.others.has(uuid) ? false : undefined)
+  const known = () => verdictIn(index, uuid)
   if (known() !== undefined) return known()
   if ((await $.clock.now()) - index.readAt >= REREAD_MS || index.readAt === -Infinity) {
     await refresh($, index)

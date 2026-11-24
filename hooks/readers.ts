@@ -10,8 +10,9 @@
 
 export type Reader = {
   // argv that prints the transcript's path (base64 of its UTF-8 on Windows),
-  // or exits non-zero where there is none.
-  locate: (session: string, uuid: string) => string[]
+  // or exits non-zero where there is none. With `isPrefix`, a row whose uuid
+  // begins with `uuid` is the reply's (for an id the engine made from it).
+  locate: (session: string, uuid: string, isPrefix?: boolean) => string[]
   scan: (file: string, offset: number) => string[]
   decodePath: (stdout: string) => string
 }
@@ -93,7 +94,7 @@ const LOCATE_SH = `
 d="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
 f=$(ls -t "$d"/*/"$1".jsonl 2>/dev/null | head -n 1)
 [ -n "$f" ] || f=$(ls -t "$d"/*/*.jsonl 2>/dev/null | head -n 50 | while IFS= read -r t; do
-  grep -qF "\\"uuid\\":\\"$2\\"" "$t" 2>/dev/null && { printf '%s' "$t"; break; }
+  grep -qF "\\"uuid\\":\\"$2$3" "$t" 2>/dev/null && { printf '%s' "$t"; break; }
 done)
 [ -n "$f" ] || exit 3
 printf '%s' "$f"
@@ -129,7 +130,7 @@ tail -c +"$(($2 + 1))" "$1" | head -c "$(($size - $2))" | LC_ALL=C awk -v start=
 `
 
 export const posix: Reader = {
-  locate: (session, uuid) => ['sh', '-c', LOCATE_SH, 'sh', session, uuid],
+  locate: (session, uuid, isPrefix = false) => ['sh', '-c', LOCATE_SH, 'sh', session, uuid, isPrefix ? '' : '"'],
   scan: (file, offset) => ['sh', '-c', SCAN_SH, 'sh', file, String(offset)],
   decodePath: stdout => stdout,
 }
@@ -142,10 +143,10 @@ export const posix: Reader = {
 // page survives.
 const literal = (value: string) => `'${value.replace(/['\u2018\u2019\u201A\u201B]/g, '$&$&')}'`
 
-const locatePs = (projects: string, session: string, uuid: string) => `
+const locatePs = (projects: string, session: string, uuid: string, isPrefix: boolean) => `
 $ErrorActionPreference = 'SilentlyContinue'
 $d = ${literal(projects)}
-$key = '"uuid":"' + ${literal(uuid)} + '"'
+$key = '"uuid":"' + ${literal(uuid)} + ${literal(isPrefix ? '' : '"')}
 $f = Get-ChildItem -Path (Join-Path (Join-Path $d '*') (${literal(session)} + '.jsonl')) -File |
   Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $f) {
@@ -210,7 +211,7 @@ export const powershell = (systemRoot?: string): string[] => [
 
 export function windows(projects: string, shell: readonly string[] = powershell()): Reader {
   return {
-    locate: (session, uuid) => [...shell, locatePs(projects, session, uuid)],
+    locate: (session, uuid, isPrefix = false) => [...shell, locatePs(projects, session, uuid, isPrefix)],
     scan: (file, offset) => [...shell, scanPs(file, offset)],
     decodePath: stdout => new TextDecoder().decode(Uint8Array.from(atob(stdout.trim()), c => c.charCodeAt(0))),
   }
