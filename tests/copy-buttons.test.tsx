@@ -5,11 +5,11 @@ import type { TestBody } from 'claude-code/testing'
 import { codeBlocks, copyables, readInfo } from '../hooks/blocks'
 import { clean } from '../hooks/clean'
 import { abbreviate, labelOf, layoutRow, placeNotice } from '../hooks/fit'
-import { powershell, windows } from '../hooks/readers'
+import { posix, powershell, windows } from '../hooks/readers'
 import { widthOf } from '../hooks/width'
 import { renderReply } from '../hooks/render'
 import type { RowItem, RowProps } from '../hooks/row'
-import { fold, useReader } from '../hooks/transcript'
+import { fold, useReader, verdictIn } from '../hooks/transcript'
 import { onScreenPart, placeBlocks, placeOn } from '../hooks/place'
 import { layOut, wrap } from '../hooks/wrap'
 import * as samples from './fixtures/samples'
@@ -231,6 +231,28 @@ test('a reply is final when the closing line is the next thing after it', () => 
 
   fold(index, ['D'])
   expect(index.finals.has('f')).toBe(true)
+})
+
+test('a reply drawn under an id the engine made from its row\'s uuid gets its verdict', () => {
+  const index = { finals: new Set<string>(), others: new Set<string>(), pending: null as string | null }
+  fold(index, ['T 50590bfe-d295-4130-9e34-d32c13daf539', 'D', 'T c9428641-defe-4207-b9ab-e82079a0e1c0', 'U'])
+  expect(verdictIn(index, '50590bfe-d295-4130-9e34-d32c13daf539')).toBe(true)
+  expect(verdictIn(index, '50590bfe-d295-4130-9e34-000000000000')).toBe(true)
+  expect(verdictIn(index, 'c9428641-defe-4207-b9ab-000000000001')).toBe(false)
+  // Only an id the engine makes that way: a reply not read yet stays unknown.
+  expect(verdictIn(index, '50590bfe-d295-4130-9e34-d32c13daf540')).toBeUndefined()
+  expect(verdictIn(index, '11111111-d295-4130-9e34-000000000000')).toBeUndefined()
+  // A reply a later read adds is found the same way.
+  fold(index, ['T 7ea08f2b-1dbc-4952-a28c-c76b20d7f477', 'D'])
+  expect(verdictIn(index, '7ea08f2b-1dbc-4952-a28c-000000000000')).toBe(true)
+})
+
+test('a reply drawn under an id the engine made is looked for by the part of its row\'s uuid it keeps', () => {
+  expect(posix.locate('s', 'a1b2', true).slice(-2)).toEqual(['a1b2', ''])
+  expect(posix.locate('s', 'a1b2').slice(-2)).toEqual(['a1b2', '"'])
+  const ps = windows('C:\\p', ['powershell.exe']).locate('s', 'a1b2', true).at(-1) ?? ''
+  expect(ps).toContain(`$key = '"uuid":"' + 'a1b2' + ''`)
+  expect(windows('C:\\p', ['powershell.exe']).locate('s', 'a1b2').at(-1)).toContain(`$key = '"uuid":"' + 'a1b2' + '"'`)
 })
 
 test('a final answer is drawn by the engine with the actions on its closing line', async ($, on) => {
