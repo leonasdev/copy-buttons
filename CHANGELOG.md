@@ -8,6 +8,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-11-24
+
 ### Fixed
 
 - A session whose transcript holds a row of more than one block (Claude Code
@@ -219,7 +221,8 @@ a removed or renamed setting option, or a changed default, is a major version.
 - Tables copy as spreadsheet rows, or as drawn.
 - Settings: `icon`, `replyFormat`, `copiedNotice`.
 
-[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/leonasdev/copy-buttons/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/leonasdev/copy-buttons/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/leonasdev/copy-buttons/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/leonasdev/copy-buttons/compare/v1.5.7...v1.6.0
 [1.5.7]: https://github.com/leonasdev/copy-buttons/compare/v1.5.6...v1.5.7
