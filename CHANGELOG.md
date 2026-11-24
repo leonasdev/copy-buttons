@@ -8,6 +8,13 @@ a removed or renamed setting option, or a changed default, is a major version.
 
 ## [Unreleased]
 
+### Fixed
+
+- A session whose transcript holds a row of more than one block (Claude Code
+  2.1.328 wrote a few) has its buttons again: Claude Code draws every reply
+  after such a row under an id of its own making, which no row holds, so none
+  of those replies got its buttons, in every resume of the session.
+
 ## [1.6.1] - 2026-11-20
 
 ### Fixed
