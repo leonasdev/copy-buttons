@@ -125,11 +125,11 @@ for (const platform of platforms) {
     const ran = Bun.spawnSync(argv, { env: { ...process.env, ...platform.env() } })
     return { exitCode: ran.exitCode, stdout: ran.stdout.toString() }
   }
-  const locate = async (session: string, uuid: string) => {
+  const locate = async (session: string, uuid: string, isPrefix?: boolean) => {
     const own = platform.inProcess === true ? await locateIn(files, projects, sep, session) : undefined
     if (own !== undefined) return own
     const reader = platform.reader()
-    const ran = run(reader.locate(session, uuid))
+    const ran = run(reader.locate(session, uuid, isPrefix))
     return ran.exitCode === 0 ? reader.decodePath(ran.stdout) : ran.exitCode
   }
   const scan = async (file: string, offset: number) => {
@@ -155,6 +155,16 @@ for (const platform of platforms) {
       const file = transcript('-a', 'forked-from', lines(row.text('t1', 'hi')), 30)
       transcript('-a', 'unrelated', lines(row.text('t2', 'hi')))
       expect(await locate('session-1', 't1')).toBe(file)
+    })
+
+    // A reply drawn under an id the engine made: only the start of its row's
+    // uuid is known, and a uuid is matched whole only without `isPrefix`.
+    test('where the session has none, finds the reply by the start of its row\'s uuid', async () => {
+      const uuid = '50590bfe-d295-4130-9e34-d32c13daf539'
+      const file = transcript('-a', 'forked-from', lines(row.text(uuid, 'hi')), 30)
+      transcript('-a', 'unrelated', lines(row.text('t2', 'hi')))
+      expect(await locate('session-1', uuid.slice(0, 24), true)).toBe(file)
+      expect(await locate('session-1', uuid.slice(0, 24))).toBe(3)
     })
 
     test('exits 3 where neither is found', async () => {
